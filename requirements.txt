@@ -1,7 +1,7 @@
 streamlit==1.24.0
 pandas==2.0.3
 numpy==1.24.3
-ccxt==4.0.0
+ccxt==4.4.72
 plotly==5.15.0
 requests==2.30.0
 openai==1.13.3
