@@ -228,7 +228,7 @@ def get_dexscreener_data(symbol, timeframe, limit=100):
     try:
         # 解析交易對符號
         base, quote = symbol.split('/')
-        base_id = base.lower()  # 用於CoinGecko API
+        base_id = base.lower()  # 用於API查詢
         
         # 將時間框架轉換為秒數
         timeframe_seconds = {
@@ -243,170 +243,307 @@ def get_dexscreener_data(symbol, timeframe, limit=100):
             '1w': 604800
         }
         
-        # 獲取當前時間的Unix時間戳（秒）
-        end_time = int(time.time())
-        
-        # 根據timeframe和limit計算開始時間
+        # 根據timeframe和limit計算時間範圍
         seconds = timeframe_seconds.get(timeframe, 86400)  # 默認為1天
-        start_time = end_time - (seconds * limit)
         
-        # 首先嘗試使用CoinGecko API (免費且不需要API密鑰)
+        # 嘗試使用DexScreener API獲取數據
         try:
-            # 映射加密貨幣符號到CoinGecko ID
-            coin_id_map = {
-                'BTC': 'bitcoin',
-                'ETH': 'ethereum',
-                'SOL': 'solana',
-                'BNB': 'binancecoin',
-                'XRP': 'ripple',
-                'ADA': 'cardano',
-                'DOGE': 'dogecoin',
-                'SHIB': 'shiba-inu'
-            }
+            print(f"正在使用DexScreener API獲取{symbol}數據...")
             
-            coin_id = coin_id_map.get(base, base_id)
+            # 首先獲取配對信息
+            pair_url = f"https://api.dexscreener.com/latest/dex/search?q={base}"
+            pair_response = requests.get(pair_url)
             
-            # 使用CoinGecko API獲取數據
-            vs_currency = quote.lower()
-            days = min(365, limit)  # CoinGecko最多支持365天
-            
-            # 構建API URL
-            url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-            params = {
-                'vs_currency': vs_currency,
-                'days': days,
-                'interval': 'daily' if timeframe in ['1d', '1w'] else 'hourly'
-            }
-            
-            response = requests.get(url, params=params)
-            if response.status_code == 200:
-                data = response.json()
+            if pair_response.status_code != 200:
+                print(f"DexScreener API請求失敗: {pair_response.status_code}")
+                raise Exception(f"DexScreener API請求失敗: {pair_response.status_code}")
                 
-                # 提取價格和成交量數據
-                prices = data['prices']  # [timestamp, price]
-                volumes = data['total_volumes']  # [timestamp, volume]
-                
-                # 將數據轉換為DataFrame所需格式
-                ohlcv_data = []
-                for i, (price_item, volume_item) in enumerate(zip(prices, volumes)):
-                    timestamp = price_item[0]
-                    price = price_item[1]
-                    volume = volume_item[1]
+            pair_data = pair_response.json()
+            
+            if not pair_data.get('pairs') or len(pair_data['pairs']) == 0:
+                print(f"DexScreener未找到{symbol}交易對")
+                raise Exception(f"DexScreener未找到{symbol}交易對")
+            
+            # 找出與USDT配對的流動性最高的交易對
+            best_pair = None
+            max_liquidity = 0
+            
+            for pair in pair_data['pairs']:
+                if (pair['quoteToken']['symbol'].lower() == quote.lower() and 
+                    pair['baseToken']['symbol'].lower() == base.lower()):
                     
-                    # 由於CoinGecko只提供收盤價，我們需要模擬OHLC數據
-                    # 但我們會保持價格接近實際價格
-                    ohlcv_data.append([
-                        timestamp,
-                        price * (1 - random.uniform(0, 0.01)),  # 開盤價略低於收盤價
-                        price * (1 + random.uniform(0, 0.015)),  # 最高價略高於收盤價
-                        price * (1 - random.uniform(0, 0.015)),  # 最低價略低於收盤價
-                        price,  # 收盤價(實際數據)
-                        volume  # 成交量(實際數據)
-                    ])
-                
-                # 過濾數據以匹配請求的時間框架
-                filtered_data = []
-                if timeframe == '1d':
-                    # 對於日線圖表，每個數據點代表一天
-                    # CoinGecko的數據已經是按日的
-                    filtered_data = ohlcv_data[-limit:]
-                elif timeframe in ['1h', '4h']:
-                    # 對於小時級別圖表，我們需要按小時過濾
-                    hours_interval = 1 if timeframe == '1h' else 4
-                    filtered_data = ohlcv_data[::hours_interval][-limit:]
-                else:
-                    # 默認情況，使用所有可用數據
-                    filtered_data = ohlcv_data[-limit:]
-                
-                # 創建DataFrame
-                df = pd.DataFrame(filtered_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                
-                return df
-            else:
-                print(f"CoinGecko API返回錯誤: {response.status_code}")
-                # 繼續嘗試其他方法
-        
-        except Exception as e:
-            print(f"CoinGecko API請求失敗: {str(e)}")
+                    # 將流動性值轉換為數字
+                    liquidity = float(pair.get('liquidity', {}).get('usd', 0))
+                    
+                    if liquidity > max_liquidity:
+                        max_liquidity = liquidity
+                        best_pair = pair
             
-        # 如果CoinGecko失敗，嘗試使用ccxt
-        try:
-            # 嘗試使用ccxt從主流交易所獲取數據
-            exchange = ccxt.binance()
-            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+            if not best_pair:
+                # 如果沒有找到完全匹配的，嘗試找到最佳匹配
+                for pair in pair_data['pairs']:
+                    if pair['quoteToken']['symbol'].lower() == quote.lower():
+                        # 將流動性值轉換為數字
+                        liquidity = float(pair.get('liquidity', {}).get('usd', 0))
+                        
+                        if liquidity > max_liquidity:
+                            max_liquidity = liquidity
+                            best_pair = pair
             
-            # 將數據轉換為DataFrame
-            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            # 如果仍然沒有找到，使用第一個對
+            if not best_pair and pair_data['pairs']:
+                best_pair = pair_data['pairs'][0]
+            
+            if not best_pair:
+                print(f"無法在DexScreener找到合適的{symbol}交易對")
+                raise Exception(f"無法在DexScreener找到合適的{symbol}交易對")
+            
+            # 獲取交易對ID
+            pair_address = best_pair['pairAddress']
+            chain_id = best_pair['chainId']
+            
+            # 獲取K線數據
+            candles_url = f"https://api.dexscreener.com/latest/dex/candles?chainId={chain_id}&pairAddress={pair_address}&from=0"
+            candles_response = requests.get(candles_url)
+            
+            if candles_response.status_code != 200:
+                print(f"DexScreener K線數據請求失敗: {candles_response.status_code}")
+                raise Exception(f"DexScreener K線數據請求失敗: {candles_response.status_code}")
+                
+            candles_data = candles_response.json()
+            
+            if not candles_data.get('candles') or len(candles_data['candles']) == 0:
+                print(f"DexScreener未返回{symbol}的K線數據")
+                raise Exception(f"DexScreener未返回{symbol}的K線數據")
+            
+            # 將K線數據轉換為DataFrame
+            df_data = []
+            
+            # 根據所選時間框架過濾所需的K線
+            filtered_candles = []
+            target_timeframe = {
+                '15m': '15m',
+                '1h': '1h', 
+                '4h': '4h',
+                '1d': '1d',
+                '1w': '1w'
+            }.get(timeframe, '1d')
+            
+            for candle in candles_data['candles']:
+                if candle.get('timeframe') == target_timeframe:
+                    filtered_candles.append(candle)
+            
+            # 如果沒有找到指定時間框架的數據，使用所有可用數據
+            if not filtered_candles and candles_data['candles']:
+                available_timeframes = set(c.get('timeframe') for c in candles_data['candles'] if c.get('timeframe'))
+                print(f"未找到{target_timeframe}時間框架的數據，可用時間框架: {available_timeframes}")
+                
+                # 嘗試使用可用的最接近的時間框架
+                timeframe_priority = ['15m', '1h', '4h', '1d', '1w']
+                for tf in timeframe_priority:
+                    if tf in available_timeframes:
+                        target_timeframe = tf
+                        break
+                
+                # 重新過濾
+                for candle in candles_data['candles']:
+                    if candle.get('timeframe') == target_timeframe:
+                        filtered_candles.append(candle)
+                
+                print(f"使用{target_timeframe}時間框架的數據代替")
+            
+            # 排序K線數據，確保時間順序
+            filtered_candles.sort(key=lambda x: x.get('timestamp', 0))
+            
+            # 取最近的limit個數據點
+            if len(filtered_candles) > limit:
+                filtered_candles = filtered_candles[-limit:]
+            
+            # 轉換為DataFrame格式
+            for candle in filtered_candles:
+                timestamp = candle.get('timestamp', 0)
+                open_price = float(candle.get('open', 0))
+                high_price = float(candle.get('high', 0))
+                low_price = float(candle.get('low', 0))
+                close_price = float(candle.get('close', 0))
+                volume = float(candle.get('volume', {}).get('base', 0))
+                
+                df_data.append([
+                    timestamp,
+                    open_price,
+                    high_price,
+                    low_price,
+                    close_price,
+                    volume
+                ])
+            
+            # 創建DataFrame
+            df = pd.DataFrame(df_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            
+            # 將timestamp轉換為datetime格式
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             
+            print(f"成功從DexScreener獲取{symbol}的{len(df)}個數據點")
             return df
+            
         except Exception as e:
-            # 如果ccxt也失敗，使用模擬數據
-            print(f"CCXT獲取失敗: {e}，使用模擬數據...")
+            print(f"DexScreener API請求失敗: {str(e)}，嘗試使用ccxt...")
             
-            # 生成模擬數據(當所有API都無法使用時的備用選項)
-            dates = pd.date_range(end=pd.Timestamp.now(), periods=limit, freq=timeframe)
-            
-            # 使用更新的、更接近實際價格的基準價格
-            base_price = 0
-            volatility = 0.05
-            
-            # 更新至2025年4月初的價格
-            if 'BTC' in symbol:
-                base_price = 68500 + random.uniform(-2000, 2000)  # 比特幣更新價格
-                volatility = 0.03
-            elif 'ETH' in symbol:
-                base_price = 3500 + random.uniform(-150, 150)     # 以太坊更新價格
-                volatility = 0.04
-            elif 'SOL' in symbol:
-                base_price = 180 + random.uniform(-10, 10)        # 索拉納更新價格
-                volatility = 0.06
-            elif 'BNB' in symbol:
-                base_price = 570 + random.uniform(-20, 20)        # 幣安幣更新價格
-                volatility = 0.03
-            elif 'XRP' in symbol:
-                base_price = 0.62 + random.uniform(-0.05, 0.05)   # 瑞波幣更新價格
-                volatility = 0.04
-            elif 'ADA' in symbol:
-                base_price = 0.47 + random.uniform(-0.03, 0.03)   # 艾達幣更新價格
+            # 如果DexScreener失敗，嘗試使用ccxt
+            try:
+                # 嘗試使用ccxt從主流交易所獲取數據
+                exchange = ccxt.binance()
+                ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+                
+                # 將數據轉換為DataFrame
+                df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                
+                print(f"成功從ccxt獲取{symbol}的{len(df)}個數據點")
+                return df
+                
+            except Exception as ccxt_error:
+                # 如果ccxt也失敗，使用CoinGecko API
+                print(f"CCXT獲取失敗: {ccxt_error}，嘗試使用CoinGecko...")
+                
+                try:
+                    # 映射加密貨幣符號到CoinGecko ID
+                    coin_id_map = {
+                        'BTC': 'bitcoin',
+                        'ETH': 'ethereum',
+                        'SOL': 'solana',
+                        'BNB': 'binancecoin',
+                        'XRP': 'ripple',
+                        'ADA': 'cardano',
+                        'DOGE': 'dogecoin',
+                        'SHIB': 'shiba-inu'
+                    }
+                    
+                    coin_id = coin_id_map.get(base, base_id)
+                    
+                    # 使用CoinGecko API獲取數據
+                    vs_currency = quote.lower()
+                    days = min(365, limit)  # CoinGecko最多支持365天
+                    
+                    # 構建API URL
+                    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+                    params = {
+                        'vs_currency': vs_currency,
+                        'days': days,
+                        'interval': 'daily' if timeframe in ['1d', '1w'] else 'hourly'
+                    }
+                    
+                    response = requests.get(url, params=params)
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        # 提取價格和成交量數據
+                        prices = data['prices']  # [timestamp, price]
+                        volumes = data['total_volumes']  # [timestamp, volume]
+                        
+                        # 將數據轉換為DataFrame所需格式
+                        ohlcv_data = []
+                        for i, (price_item, volume_item) in enumerate(zip(prices, volumes)):
+                            timestamp = price_item[0]
+                            price = price_item[1]
+                            volume = volume_item[1]
+                            
+                            # 由於CoinGecko只提供收盤價，我們需要模擬OHLC數據
+                            # 但我們會保持價格接近實際價格
+                            ohlcv_data.append([
+                                timestamp,
+                                price * (1 - random.uniform(0, 0.01)),  # 開盤價略低於收盤價
+                                price * (1 + random.uniform(0, 0.015)),  # 最高價略高於收盤價
+                                price * (1 - random.uniform(0, 0.015)),  # 最低價略低於收盤價
+                                price,  # 收盤價(實際數據)
+                                volume  # 成交量(實際數據)
+                            ])
+                        
+                        # 過濾數據以匹配請求的時間框架
+                        filtered_data = []
+                        if timeframe == '1d':
+                            filtered_data = ohlcv_data[-limit:]
+                        elif timeframe in ['1h', '4h']:
+                            hours_interval = 1 if timeframe == '1h' else 4
+                            filtered_data = ohlcv_data[::hours_interval][-limit:]
+                        else:
+                            filtered_data = ohlcv_data[-limit:]
+                        
+                        # 創建DataFrame
+                        df = pd.DataFrame(filtered_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                        
+                        print(f"成功從CoinGecko獲取{symbol}的{len(df)}個數據點")
+                        return df
+                    else:
+                        print(f"CoinGecko API返回錯誤: {response.status_code}")
+                        # 最終使用模擬數據
+                        
+                except Exception as gecko_error:
+                    print(f"CoinGecko API請求失敗: {str(gecko_error)}")
+                    # 使用模擬數據
+                
+                # 生成模擬數據(當所有API都無法使用時的備用選項)
+                print(f"所有API獲取失敗，使用模擬數據生成{symbol}的價格數據...")
+                dates = pd.date_range(end=pd.Timestamp.now(), periods=limit, freq=timeframe)
+                
+                # 使用更新的、更接近實際價格的基準價格
+                base_price = 0
                 volatility = 0.05
-            elif 'DOGE' in symbol:
-                base_price = 0.16 + random.uniform(-0.01, 0.01)   # 狗狗幣更新價格
-                volatility = 0.08
-            elif 'SHIB' in symbol:
-                base_price = 0.00002750 + random.uniform(-0.000001, 0.000001)  # 柴犬幣更新價格
-                volatility = 0.09
-            else:
-                base_price = 100 + random.uniform(-5, 5)
-            
-            # 生成模擬的價格數據
-            close_prices = []
-            price = base_price
-            
-            for i in range(limit):
-                # 添加一些隨機波動，使數據看起來更真實
-                change = price * volatility * random.uniform(-1, 1)
-                # 添加一些趨勢
-                trend = price * 0.001 * (i - limit/2)
-                price = price + change + trend
-                close_prices.append(max(0.000001, price))  # 確保價格為正
-            
-            # 從收盤價生成其他價格數據
-            df = pd.DataFrame({
-                'timestamp': dates,
-                'close': close_prices,
-                'open': [p * (1 + random.uniform(-0.01, 0.01)) for p in close_prices],
-                'high': [p * (1 + random.uniform(0, 0.02)) for p in close_prices],
-                'low': [p * (1 - random.uniform(0, 0.02)) for p in close_prices],
-                'volume': [p * random.uniform(500000, 5000000) for p in close_prices]
-            })
-            
-            # 為模擬數據添加標記，在控制台輸出提示
-            print(f"使用模擬數據: {symbol} 基準價格=${base_price:.2f}")
-            
-            return df
-            
+                
+                # 更新至2025年4月初的價格
+                if 'BTC' in symbol:
+                    base_price = 68500 + random.uniform(-2000, 2000)  # 比特幣更新價格
+                    volatility = 0.03
+                elif 'ETH' in symbol:
+                    base_price = 3500 + random.uniform(-150, 150)     # 以太坊更新價格
+                    volatility = 0.04
+                elif 'SOL' in symbol:
+                    base_price = 180 + random.uniform(-10, 10)        # 索拉納更新價格
+                    volatility = 0.06
+                elif 'BNB' in symbol:
+                    base_price = 570 + random.uniform(-20, 20)        # 幣安幣更新價格
+                    volatility = 0.03
+                elif 'XRP' in symbol:
+                    base_price = 0.62 + random.uniform(-0.05, 0.05)   # 瑞波幣更新價格
+                    volatility = 0.04
+                elif 'ADA' in symbol:
+                    base_price = 0.47 + random.uniform(-0.03, 0.03)   # 艾達幣更新價格
+                    volatility = 0.05
+                elif 'DOGE' in symbol:
+                    base_price = 0.16 + random.uniform(-0.01, 0.01)   # 狗狗幣更新價格
+                    volatility = 0.08
+                elif 'SHIB' in symbol:
+                    base_price = 0.00002750 + random.uniform(-0.000001, 0.000001)  # 柴犬幣更新價格
+                    volatility = 0.09
+                else:
+                    base_price = 100 + random.uniform(-5, 5)
+                
+                # 生成模擬的價格數據
+                close_prices = []
+                price = base_price
+                
+                for i in range(limit):
+                    # 添加一些隨機波動，使數據看起來更真實
+                    change = price * volatility * random.uniform(-1, 1)
+                    # 添加一些趨勢
+                    trend = price * 0.001 * (i - limit/2)
+                    price = price + change + trend
+                    close_prices.append(max(0.000001, price))  # 確保價格為正
+                
+                # 從收盤價生成其他價格數據
+                df = pd.DataFrame({
+                    'timestamp': dates,
+                    'close': close_prices,
+                    'open': [p * (1 + random.uniform(-0.01, 0.01)) for p in close_prices],
+                    'high': [p * (1 + random.uniform(0, 0.02)) for p in close_prices],
+                    'low': [p * (1 - random.uniform(0, 0.02)) for p in close_prices],
+                    'volume': [p * random.uniform(500000, 5000000) for p in close_prices]
+                })
+                
+                print(f"使用模擬數據: {symbol} 基準價格=${base_price:.2f}")
+                return df
+                
     except Exception as e:
         print(f"獲取加密貨幣數據時出錯: {str(e)}")
         return None
