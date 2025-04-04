@@ -942,6 +942,22 @@ def get_claude_analysis(symbol, timeframe, smc_results, snr_results):
     
     return analysis
 
+# 將get_dexscreener_data作為get_crypto_data的備份
+def get_crypto_data(symbol, timeframe, limit=100):
+    """
+    獲取加密貨幣的歷史數據，使用DexScreener API
+    
+    參數:
+    - symbol: 交易對符號，例如 'BTC/USDT'
+    - timeframe: 時間框架，例如 '15m', '1h', '4h', '1d', '1w'
+    - limit: 返回的數據點數量
+    
+    返回:
+    - 包含 timestamp, open, high, low, close, volume 列的 DataFrame
+    """
+    print(f"調用get_crypto_data: {symbol}, {timeframe}")
+    return get_dexscreener_data(symbol, timeframe, limit)
+
 # 應用標題和導航 - 使用列布局替代側邊欄
 st.markdown("""
 <div style="text-align: center; padding: 20px 0;">
