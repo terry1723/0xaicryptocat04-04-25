@@ -747,53 +747,108 @@ def snr_analysis(df):
     # 處理RSI中的NaN值
     df['rsi'] = df['rsi'].fillna(50)
     
-    # 計算支撐阻力位
-    window = min(10, len(df) // 2)  # 確保窗口大小不超過資料集的一半
-    df['sup_level'] = df['low'].rolling(window=window).min()
-    df['res_level'] = df['high'].rolling(window=window).max()
+    # 獲取最新價格
+    current_price = df['close'].iloc[-1]
     
-    # 填充NaN值
-    df['sup_level'] = df['sup_level'].fillna(df['low'].min())
-    df['res_level'] = df['res_level'].fillna(df['high'].max())
+    # 改進支撐阻力位識別 - 使用峰谷法
+    # 將數據轉換為numpy數組以提高性能
+    prices = df['close'].values
+    highs = df['high'].values
+    lows = df['low'].values
+    volumes = df['volume'].values if 'volume' in df else np.ones_like(prices)
+    n = len(prices)
     
-    # 計算支撐阻力強度 (基於成交量)
-    mean_volume = df['volume'].mean() if not df['volume'].isna().all() else 1.0
-    df['sup_strength'] = df['volume'] / mean_volume
-    df['res_strength'] = df['sup_strength']
+    # 識別局部峰值和谷值(價格轉折點)
+    peaks = []
+    troughs = []
     
-    # 獲取最新數據
-    latest = df.iloc[-1]
+    # 使用至少3個點來識別峰值和谷值
+    window_size = 3
+    for i in range(window_size, n - window_size):
+        # 識別峰值(局部高點)
+        if all(highs[i] > highs[i-j] for j in range(1, window_size+1)) and all(highs[i] > highs[i+j] for j in range(1, window_size+1)):
+            peaks.append((i, highs[i], volumes[i]))
+        
+        # 識別谷值(局部低點)
+        if all(lows[i] < lows[i-j] for j in range(1, window_size+1)) and all(lows[i] < lows[i+j] for j in range(1, window_size+1)):
+            troughs.append((i, lows[i], volumes[i]))
+    
+    # 基於峰谷和成交量計算支撐阻力位
+    resistance_levels = []
+    support_levels = []
+    
+    # 僅考慮最近的點(距離當前時間越近越重要)
+    recency_factor = 0.85
+    
+    # 處理阻力位
+    for i, price, volume in peaks:
+        # 如果價格高於當前價格，則為阻力位
+        if price > current_price:
+            # 計算權重 (基於成交量和接近當前時間程度)
+            weight = (volume / np.mean(volumes)) * (recency_factor ** (n - i - 1))
+            resistance_levels.append((price, weight))
+    
+    # 處理支撐位
+    for i, price, volume in troughs:
+        # 如果價格低於當前價格，則為支撐位
+        if price < current_price:
+            # 計算權重 (基於成交量和接近當前時間程度)
+            weight = (volume / np.mean(volumes)) * (recency_factor ** (n - i - 1))
+            support_levels.append((price, weight))
+    
+    # 在沒有足夠峰谷的情況下使用技術分析創建水平位
+    if len(resistance_levels) < 2:
+        # 使用ATR的倍數作為備選阻力位
+        atr = np.mean([highs[i] - lows[i] for i in range(n-14, n)])
+        resistance_levels.extend([(current_price + (i+1) * atr, 0.5 / (i+1)) for i in range(3)])
+    
+    if len(support_levels) < 2:
+        # 使用ATR的倍數作為備選支撐位
+        atr = np.mean([highs[i] - lows[i] for i in range(n-14, n)])
+        support_levels.extend([(current_price - (i+1) * atr, 0.5 / (i+1)) for i in range(3)])
+    
+    # 按照價格排序支撐阻力位
+    resistance_levels.sort(key=lambda x: x[0])
+    support_levels.sort(key=lambda x: x[0], reverse=True)
+    
+    # 選擇近期支撐阻力位(最接近當前價格的)
+    near_resistance = resistance_levels[0][0] if resistance_levels else current_price * 1.05
+    near_support = support_levels[0][0] if support_levels else current_price * 0.95
+    
+    # 選擇強支撐阻力位(第二接近的，或者根據權重選擇)
+    strong_resistance = resistance_levels[1][0] if len(resistance_levels) > 1 else near_resistance * 1.05
+    strong_support = support_levels[1][0] if len(support_levels) > 1 else near_support * 0.95
+    
+    # 計算支撐阻力強度(基於識別出的點的權重)
+    support_strength = sum(weight for _, weight in support_levels) if support_levels else 1.0
+    resistance_strength = sum(weight for _, weight in resistance_levels) if resistance_levels else 1.0
     
     # 計算動能方向 (基於近期RSI變化)
     rsi_change = 0
     if len(df) > 5:
-        rsi_change = latest['rsi'] - df.iloc[-6]['rsi']
+        rsi_change = df['rsi'].iloc[-1] - df['rsi'].iloc[-6]
     
     momentum_up = rsi_change > 5
     momentum_down = rsi_change < -5
     
-    # 查找多個時間框架的支撐阻力位
-    near_sup = round(latest['sup_level'] * 0.99, 2)
-    near_res = round(latest['res_level'] * 1.01, 2)
-    strong_sup = round(near_sup * 0.97, 2)
-    strong_res = round(near_res * 1.03, 2)
-    
     # 生成分析結果
     results = {
-        'price': latest['close'],
-        'overbought': latest['rsi'] > 70,
-        'oversold': latest['rsi'] < 30,
-        'rsi': round(latest['rsi'], 2),
-        'near_support': near_sup,
-        'strong_support': strong_sup,
-        'near_resistance': near_res,
-        'strong_resistance': strong_res,
-        'support_strength': round(latest.get('sup_strength', 1.0), 2),
-        'resistance_strength': round(latest.get('res_strength', 1.0), 2),
-        'recommendation': 'buy' if latest['rsi'] < 30 else 
-                          'sell' if latest['rsi'] > 70 else 'neutral',
+        'price': current_price,
+        'overbought': df['rsi'].iloc[-1] > 70,
+        'oversold': df['rsi'].iloc[-1] < 30,
+        'rsi': round(df['rsi'].iloc[-1], 2),
+        'near_support': round(near_support, 2),
+        'strong_support': round(strong_support, 2),
+        'near_resistance': round(near_resistance, 2),
+        'strong_resistance': round(strong_resistance, 2),
+        'support_strength': round(min(support_strength, 2.0), 2),  # 限制在0-2範圍
+        'resistance_strength': round(min(resistance_strength, 2.0), 2),  # 限制在0-2範圍
+        'recommendation': 'buy' if df['rsi'].iloc[-1] < 30 else 
+                          'sell' if df['rsi'].iloc[-1] > 70 else 'neutral',
         'momentum_up': momentum_up,
-        'momentum_down': momentum_down
+        'momentum_down': momentum_down,
+        'all_support_levels': [round(price, 2) for price, _ in support_levels[:5]],
+        'all_resistance_levels': [round(price, 2) for price, _ in resistance_levels[:5]]
     }
     
     return results
