@@ -548,20 +548,34 @@ def get_dexscreener_data(symbol, timeframe, limit=100):
         print(f"獲取加密貨幣數據時出錯: {str(e)}")
         return None
 
-# 定義get_crypto_data函數作為get_dexscreener_data的別名，以修復現有代碼的調用
+# 將get_dexscreener_data函數作為get_crypto_data的備份，將其移動到get_dexscreener_data函數之後立即定義
 def get_crypto_data(symbol, timeframe, limit=100):
     """
-    獲取加密貨幣數據，是get_dexscreener_data的別名
+    獲取加密貨幣的歷史數據，使用DexScreener API
     
     參數:
-    symbol (str): 交易對符號，如 'BTC/USDT'
-    timeframe (str): 時間框架，如 '1d', '4h', '1h'
-    limit (int): 要獲取的數據點數量
+    - symbol: 交易對符號，例如 'BTC/USDT'
+    - timeframe: 時間框架，例如 '15m', '1h', '4h', '1d', '1w'
+    - limit: 返回的數據點數量
     
     返回:
-    pandas.DataFrame 或 None: 包含OHLCV數據的DataFrame，如果獲取失敗則返回None
+    - 包含 timestamp, open, high, low, close, volume 列的 DataFrame
     """
-    return get_dexscreener_data(symbol, timeframe, limit)
+    st.info(f"正在獲取 {symbol} ({timeframe}) 的市場數據...")
+    print(f"調用get_crypto_data 獲取{symbol}數據，時間框架: {timeframe}，數據點: {limit}")
+    
+    # 使用實時API獲取數據
+    df = get_dexscreener_data(symbol, timeframe, limit)
+    
+    # 如果成功獲取數據，記錄成功信息並返回
+    if df is not None and len(df) > 0:
+        st.success(f"成功獲取 {symbol} 的真實市場數據，最新價格: ${df['close'].iloc[-1]:.2f}")
+        print(f"成功獲取 {symbol} 的真實市場數據，共{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
+        return df
+    else:
+        st.error(f"無法獲取 {symbol} 的市場數據，請檢查網絡連接或選擇其他交易對")
+        print(f"無法獲取 {symbol} 的市場數據")
+        return None
 
 # 市場結構分析函數 (SMC)
 def smc_analysis(df):
@@ -941,22 +955,6 @@ def get_claude_analysis(symbol, timeframe, smc_results, snr_results):
         """
     
     return analysis
-
-# 將get_dexscreener_data作為get_crypto_data的備份
-def get_crypto_data(symbol, timeframe, limit=100):
-    """
-    獲取加密貨幣的歷史數據，使用DexScreener API
-    
-    參數:
-    - symbol: 交易對符號，例如 'BTC/USDT'
-    - timeframe: 時間框架，例如 '15m', '1h', '4h', '1d', '1w'
-    - limit: 返回的數據點數量
-    
-    返回:
-    - 包含 timestamp, open, high, low, close, volume 列的 DataFrame
-    """
-    print(f"調用get_crypto_data: {symbol}, {timeframe}")
-    return get_dexscreener_data(symbol, timeframe, limit)
 
 # 應用標題和導航 - 使用列布局替代側邊欄
 st.markdown("""
