@@ -551,7 +551,7 @@ def get_dexscreener_data(symbol, timeframe, limit=100):
 # 將get_dexscreener_data函數作為get_crypto_data的備份，將其移動到get_dexscreener_data函數之後立即定義
 def get_crypto_data(symbol, timeframe, limit=100):
     """
-    獲取加密貨幣的歷史數據，使用DexScreener API
+    獲取加密貨幣的歷史數據，使用DexScreener API，並進行價格驗證
     
     參數:
     - symbol: 交易對符號，例如 'BTC/USDT'
@@ -567,8 +567,60 @@ def get_crypto_data(symbol, timeframe, limit=100):
     # 使用實時API獲取數據
     df = get_dexscreener_data(symbol, timeframe, limit)
     
-    # 如果成功獲取數據，記錄成功信息並返回
+    # 驗證價格是否合理
     if df is not None and len(df) > 0:
+        # 獲取交易對的基本幣種（例如BTC/USDT中的BTC）
+        base_coin = symbol.split('/')[0]
+        
+        # 嘗試從CoinGecko獲取當前真實價格進行驗證
+        try:
+            # CoinGecko幣種ID映射
+            coin_id_map = {
+                'BTC': 'bitcoin',
+                'ETH': 'ethereum',
+                'SOL': 'solana',
+                'BNB': 'binancecoin',
+                'XRP': 'ripple',
+                'ADA': 'cardano',
+                'DOGE': 'dogecoin',
+                'SHIB': 'shiba-inu'
+            }
+            
+            # 使用CoinGecko API驗證價格
+            if base_coin in coin_id_map:
+                try:
+                    coingecko_url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id_map[base_coin]}&vs_currencies=usd"
+                    response = requests.get(coingecko_url, headers={'accept': 'application/json'})
+                    
+                    if response.status_code == 200:
+                        coingecko_price = response.json()[coin_id_map[base_coin]]['usd']
+                        dex_price = df['close'].iloc[-1]
+                        
+                        # 計算價格差異百分比
+                        price_diff_pct = abs(dex_price - coingecko_price) / coingecko_price * 100
+                        
+                        print(f"價格對比 - DexScreener: ${dex_price:.2f}, CoinGecko: ${coingecko_price:.2f}, 差異: {price_diff_pct:.2f}%")
+                        
+                        # 如果價格差異超過5%，使用CoinGecko的價格
+                        if price_diff_pct > 5:
+                            print(f"DexScreener價格與CoinGecko價格差異過大({price_diff_pct:.2f}%)，使用CoinGecko價格")
+                            
+                            # 創建新的收盤價系列，保持價格比例但調整到CoinGecko價格
+                            price_ratio = coingecko_price / dex_price
+                            df['close'] = df['close'] * price_ratio
+                            df['open'] = df['open'] * price_ratio
+                            df['high'] = df['high'] * price_ratio
+                            df['low'] = df['low'] * price_ratio
+                            
+                            st.warning(f"DexScreener價格顯示異常，已自動校正為CoinGecko價格(${coingecko_price:.2f})")
+                        
+                except Exception as e:
+                    print(f"CoinGecko價格驗證失敗: {e}")
+        
+        except Exception as validation_error:
+            print(f"價格驗證過程出錯: {validation_error}")
+        
+        # 輸出成功信息並返回
         st.success(f"成功獲取 {symbol} 的真實市場數據，最新價格: ${df['close'].iloc[-1]:.2f}")
         print(f"成功獲取 {symbol} 的真實市場數據，共{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
         return df
