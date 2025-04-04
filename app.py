@@ -212,9 +212,20 @@ OPENAI_API_KEY = get_api_key("OPENAI_API_KEY", "")
 # 設置 Bitget MCP 服務器
 BITGET_MCP_SERVER = "http://localhost:3000"
 
-# 保留原有的數據獲取和分析函數...
-# 這裡省略大量代碼，保持原有功能不變
-# ...
+# 定義get_crypto_data函數作為get_dexscreener_data的別名，以修復現有代碼的調用
+def get_crypto_data(symbol, timeframe, limit=100):
+    """
+    獲取加密貨幣數據，是get_dexscreener_data的別名
+    
+    參數:
+    symbol (str): 交易對符號，如 'BTC/USDT'
+    timeframe (str): 時間框架，如 '1d', '4h', '1h'
+    limit (int): 要獲取的數據點數量
+    
+    返回:
+    pandas.DataFrame 或 None: 包含OHLCV數據的DataFrame，如果獲取失敗則返回None
+    """
+    return get_dexscreener_data(symbol, timeframe, limit)
 
 # 應用標題和導航 - 使用列布局替代側邊欄
 st.markdown("""
