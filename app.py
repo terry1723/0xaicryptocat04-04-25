@@ -49,6 +49,9 @@ DEEPSEEK_API_KEY = get_api_key("DEEPSEEK_API_KEY", "sk-6ae04d6789f94178b4053d2c4
 # 設置 CoinMarketCap API 密鑰
 COINMARKETCAP_API_KEY = get_api_key("COINMARKETCAP_API_KEY", "b54bcf4d-1bca-4e8e-9a24-22ff2c3d462c")
 
+# 新增：設置 OpenAI API 密鑰
+OPENAI_API_KEY = get_api_key("OPENAI_API_KEY", "")
+
 # 設置 Bitget MCP 服務器
 BITGET_MCP_SERVER = "http://localhost:3000"
 
@@ -1510,12 +1513,64 @@ def get_fallback_deepseek_analysis(symbol, timeframe, smc_results, snr_results):
     _分析時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_
     """
 
-# 模擬使用GPT-4o-mini進行市場情緒分析
+# 使用 OpenAI GPT-4o3-mini API 進行市場情緒分析
 def get_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
+    """使用 OpenAI GPT-4o3-mini API 進行市場情緒分析"""
+    if not OPENAI_API_KEY:
+        st.warning("未設置 OpenAI API 密鑰，將使用模擬分析")
+        return get_fallback_gpt4o_analysis(symbol, timeframe, smc_results, snr_results)
+    
+    try:
+        import openai
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        
+        # 準備提示
+        prompt = f"""
+        你是一位加密貨幣市場情緒分析專家。請根據以下資料分析 {symbol} 在 {timeframe} 時間框架的市場情緒:
+
+        - 當前價格: ${smc_results['price']:.2f}
+        - 市場結構: {"上升趨勢" if smc_results['market_structure'] == 'bullish' else "下降趨勢"}
+        - 趨勢強度: {smc_results['trend_strength']:.2f}
+        - RSI值: {snr_results['rsi']:.2f}
+        - RSI狀態: {"超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"}
+        - 近期支撐位: ${snr_results['near_support']:.2f}
+        - 近期阻力位: ${snr_results['near_resistance']:.2f}
+
+        請提供以下內容:
+        1. 當前市場情緒評估 (看漲/看跌/中性及強度)
+        2. 投資者行為心理分析 (恐懼/貪婪指數、群體心理等)
+        3. 交易者對支撐/阻力位的共識程度
+        4. 近期可能的市場情緒轉變點
+
+        使用專業但易懂的語言，以繁體中文回答，格式化為 Markdown 格式。
+        """
+
+        # 發送請求
+        with st.spinner("正在使用 GPT-4o3-mini 分析市場情緒..."):
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",  # 使用 GPT-4o3-mini 模型
+                messages=[
+                    {"role": "system", "content": "你是一位專業的加密貨幣市場情緒分析師，擅長解讀技術指標背後的市場心理。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=800
+            )
+            
+            analysis = response.choices[0].message.content
+            return analysis
+            
+    except Exception as e:
+        st.error(f"GPT-4o3-mini API 呼叫失敗: {str(e)}")
+        return get_fallback_gpt4o_analysis(symbol, timeframe, smc_results, snr_results)
+
+# 備用市場情緒分析函數 (當 API 調用失敗時使用)
+def get_fallback_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
+    """備用的市場情緒分析 (模擬)"""
     # 準備內容
     market_state = "超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"
     
-    # 模擬GPT-4o-mini的回應
+    # 模擬分析
     analysis = f"""
     ## {symbol} {timeframe} 市場情緒分析
 
@@ -1543,8 +1598,87 @@ def get_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
     
     return analysis
 
-# 模擬使用Claude-3.7-Sonnet進行整合分析
+# 使用 DeepSeek V3 API 進行整合分析與結構化輸出
 def get_claude_analysis(symbol, timeframe, smc_results, snr_results):
+    """使用 DeepSeek V3 API 進行整合分析與結構化輸出，替代模擬的 Claude 3.7"""
+    try:
+        # 檢查SMC和SNR建議是否一致
+        is_consistent = smc_results['recommendation'] == snr_results['recommendation']
+        
+        # 準備提示
+        prompt = f"""
+        作為加密貨幣分析專家，請整合以下 SMC 和 SNR 策略的分析結果，為 {symbol} 在 {timeframe} 時間框架提供一個綜合分析報告:
+
+        SMC分析結果:
+        - 市場結構: {"上升趨勢" if smc_results['market_structure'] == 'bullish' else "下降趨勢"}
+        - 趨勢強度: {smc_results['trend_strength']:.2f}
+        - 價格: ${smc_results['price']:.2f}
+        - 支撐位: ${smc_results['support_level']:.2f}
+        - 阻力位: ${smc_results['resistance_level']:.2f}
+        - SMC 建議: {"買入" if smc_results['recommendation'] == 'buy' else "賣出" if smc_results['recommendation'] == 'sell' else "觀望"}
+
+        SNR分析結果:
+        - RSI: {snr_results['rsi']:.2f} ({"超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"})
+        - 近期支撐位: ${snr_results['near_support']:.2f}
+        - 強支撐位: ${snr_results['strong_support']:.2f}
+        - 近期阻力位: ${snr_results['near_resistance']:.2f}
+        - 強阻力位: ${snr_results['strong_resistance']:.2f}
+        - SNR 建議: {"買入" if snr_results['recommendation'] == 'buy' else "賣出" if snr_results['recommendation'] == 'sell' else "觀望"}
+
+        兩種策略{"一致" if is_consistent else "不一致"}。
+
+        請輸出以下格式的 Markdown 報告:
+        1. 報告標題
+        2. 整合交易建議部分，包含建議操作、信心指數、風險評分
+        3. 市場結構分析部分
+        4. 關鍵價位分析部分
+        5. 操作建議部分
+        6. 風險控制策略部分
+        7. 多時間框架考量部分
+
+        請提供專業的分析和具體的數字，如價格目標、止損水平等。使用繁體中文回答。
+        """
+        
+        # 使用 DeepSeek API 進行整合分析
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+        }
+        
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1500
+        }
+        
+        # API 請求
+        with st.spinner("正在使用 DeepSeek V3 整合分析結果..."):
+            response = requests.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            
+            if response.status_code == 200:
+                analysis = response.json()["choices"][0]["message"]["content"]
+                return analysis
+            else:
+                st.error(f"DeepSeek API 呼叫失敗: {response.status_code} - {response.text}")
+                # 返回備用回應
+                return get_fallback_claude_analysis(symbol, timeframe, smc_results, snr_results)
+    except Exception as e:
+        st.error(f"DeepSeek API 呼叫出錯: {e}")
+        return get_fallback_claude_analysis(symbol, timeframe, smc_results, snr_results)
+
+# 備用整合分析函數 (當 API 調用失敗時使用)
+def get_fallback_claude_analysis(symbol, timeframe, smc_results, snr_results):
+    """備用的整合分析函數 (模擬)"""
     # 檢查SMC和SNR建議是否一致
     is_consistent = smc_results['recommendation'] == snr_results['recommendation']
     confidence = 0.8 if is_consistent else 0.6
@@ -1595,7 +1729,7 @@ def get_claude_analysis(symbol, timeframe, smc_results, snr_results):
         operation_advice = f"市場信號混合，建議觀望至趨勢明確，可關注{near_support}和{near_resistance}的突破情況"
         stop_loss = "視個人風險偏好設置"
     
-    # 模擬Claude-3.7-Sonnet的回應
+    # 備用回應
     return f"""
     # {symbol} {timeframe} 綜合分析報告
 
@@ -2361,15 +2495,15 @@ st.sidebar.markdown("""
     <table style='width:100%;'>
         <tr>
             <td><span style='color:#9C27B0;'>🧪</span> DeepSeek V3:</td>
-            <td>技術分析與價格預測 (真實API)</td>
+            <td>技術分析與價格預測</td>
         </tr>
         <tr>
-            <td><span style='color:#00BCD4;'>🔍</span> GPT-4o3-mini:</td>
-            <td>市場情緒分析 (模擬)</td>
+            <td><span style='color:#00BCD4;'>🔍</span> GPT-4o-mini:</td>
+            <td>市場情緒分析</td>
         </tr>
         <tr>
-            <td><span style='color:#3F51B5;'>🔮</span> Claude 3.7:</td>
-            <td>分析整合與結構化輸出 (模擬)</td>
+            <td><span style='color:#3F51B5;'>🔮</span> DeepSeek V3:</td>
+            <td>分析整合與結構化輸出</td>
         </tr>
     </table>
 </div>
