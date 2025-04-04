@@ -833,7 +833,6 @@ with tabs[2]:
     # 創建DataFrame
     market_data = pd.DataFrame(market_data_list)
     
-    # 使用自定義HTML和CSS來創建更漂亮的表格
     # 為價格上升項目添加綠色，下降項目添加紅色
     def color_change(val):
         if isinstance(val, str) and '+' in val:
@@ -842,8 +841,8 @@ with tabs[2]:
             return f'color: #F44336; font-weight: bold;'
         return ''
     
-    # 使用map替代已棄用的applymap
-    styled_market_data = market_data.style.map(color_change, subset=['24h漲跌幅', '7d漲跌幅'])
+    # 使用applymap而不是map
+    styled_market_data = market_data.style.applymap(color_change, subset=['24h漲跌幅', '7d漲跌幅'])
     
     # 顯示樣式化的表格
     st.dataframe(styled_market_data, use_container_width=True)
