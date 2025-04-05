@@ -1512,9 +1512,9 @@ with tabs[2]:
     
     # 嘗試獲取真實市場數據
     try:
-        # 使用DexScreener API獲取比特幣數據來估算市場狀況
-        btc_data = get_dexscreener_data("BTC/USDT", "1d", limit=2)
-        eth_data = get_dexscreener_data("ETH/USDT", "1d", limit=2)
+        # 使用get_crypto_data代替get_dexscreener_data以確保價格準確性
+        btc_data = get_crypto_data("BTC/USDT", "1d", limit=2)
+        eth_data = get_crypto_data("ETH/USDT", "1d", limit=2)
         
         # 計算比特幣24小時變化百分比
         if btc_data is not None and len(btc_data) >= 2:
@@ -1603,8 +1603,8 @@ with tabs[2]:
     with st.spinner("正在獲取市場數據..."):
         for symbol in crypto_list:
             try:
-                # 獲取當日數據
-                df = get_dexscreener_data(symbol, "1d", limit=8)
+                # 獲取當日數據 - 使用get_crypto_data而非get_dexscreener_data以確保價格準確性
+                df = get_crypto_data(symbol, "1d", limit=8)
                 
                 if df is not None and len(df) > 0:
                     # 獲取最新價格
