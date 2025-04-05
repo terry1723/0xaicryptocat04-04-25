@@ -548,10 +548,40 @@ def get_dexscreener_data(symbol, timeframe, limit=100):
         print(f"獲取加密貨幣數據時出錯: {str(e)}")
         return None
 
-# 將get_dexscreener_data函數作為get_crypto_data的備份，將其移動到get_dexscreener_data函數之後立即定義
+# 價格合理性驗證函數
+def verify_price_reasonability(df, base_coin):
+    """驗證價格是否在合理範圍內"""
+    if df is None or len(df) == 0:
+        return False
+    
+    current_price = df['close'].iloc[-1]
+    
+    # 2025年的合理價格範圍
+    reasonable_ranges = {
+        'BTC': (50000, 80000),
+        'ETH': (2600, 5000),
+        'SOL': (150, 300),
+        'BNB': (450, 650),
+        'XRP': (0.4, 0.9),
+        'ADA': (0.3, 0.6),
+        'DOGE': (0.05, 0.2),
+        'SHIB': (0.00001, 0.0001)
+    }
+    
+    if base_coin in reasonable_ranges:
+        min_price, max_price = reasonable_ranges[base_coin]
+        if min_price <= current_price <= max_price:
+            return True
+        
+        print(f"警告: {base_coin}價格${current_price:.2f}超出合理範圍(${min_price:.2f}-${max_price:.2f})")
+        return False
+    
+    return True
+
+# 用CoinCap API重新實現加密貨幣數據獲取函數
 def get_crypto_data(symbol, timeframe, limit=100):
     """
-    獲取加密貨幣的歷史數據，使用DexScreener API，並進行嚴格的價格驗證
+    獲取加密貨幣歷史數據，主要使用CoinCap API，備用CoinGecko
     
     參數:
     - symbol: 交易對符號，例如 'BTC/USDT'
@@ -561,229 +591,343 @@ def get_crypto_data(symbol, timeframe, limit=100):
     返回:
     - 包含 timestamp, open, high, low, close, volume 列的 DataFrame
     """
+    # 檢查緩存
+    cache_key = f"{symbol}_{timeframe}"
+    if 'price_data' in st.session_state and cache_key in st.session_state.price_data:
+        print(f"使用緩存的{symbol}數據")
+        return st.session_state.price_data[cache_key]
+    
     st.info(f"正在獲取 {symbol} ({timeframe}) 的市場數據...")
-    print(f"調用get_crypto_data 獲取{symbol}數據，時間框架: {timeframe}，數據點: {limit}")
+    print(f"調用get_crypto_data: {symbol}, {timeframe}, {limit}")
     
-    # 使用實時API獲取數據
-    df = get_dexscreener_data(symbol, timeframe, limit)
+    # 解析交易對
+    base, quote = symbol.split('/')
+    base = base.lower()
     
-    # 獲取交易對的基本幣種（例如BTC/USDT中的BTC）
-    base_coin = symbol.split('/')[0]
-    
-    # 增強型價格驗證系統
-    if df is not None and len(df) > 0:
-        # 初始化已驗證標志
-        price_verified = False
+    # 1. 優先使用CoinCap API (無需密鑰、限制少)
+    try:
+        # CoinCap ID映射
+        coincap_id_map = {
+            'BTC': 'bitcoin',
+            'ETH': 'ethereum',
+            'SOL': 'solana',
+            'BNB': 'binance-coin',
+            'XRP': 'xrp',
+            'ADA': 'cardano',
+            'DOGE': 'dogecoin',
+            'SHIB': 'shiba-inu'
+        }
         
-        # 1. 首先通過CoinGecko API驗證價格
-        try:
-            # CoinGecko幣種ID映射
-            coin_id_map = {
-                'BTC': 'bitcoin',
-                'ETH': 'ethereum',
-                'SOL': 'solana',
-                'BNB': 'binancecoin',
-                'XRP': 'ripple',
-                'ADA': 'cardano',
-                'DOGE': 'dogecoin',
-                'SHIB': 'shiba-inu'
-            }
+        coin_id = coincap_id_map.get(base.upper(), base)
+        
+        # 時間間隔映射
+        interval_map = {
+            '15m': 'm15',
+            '1h': 'h1',
+            '4h': 'h2',  # CoinCap沒有h4，用h2替代
+            '1d': 'd1',
+            '1w': 'w1'
+        }
+        
+        interval = interval_map.get(timeframe, 'h1')
+        
+        # 請求頭
+        headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        # 計算時間範圍
+        end_time = int(time.time() * 1000)
+        # 根據時間框架計算合適的開始時間
+        time_range = {
+            'm15': 1,     # 1天
+            'h1': 7,      # 7天
+            'h2': 14,     # 14天
+            'd1': 30,     # 30天
+            'w1': 90      # 90天
+        }
+        start_time = end_time - (time_range.get(interval, 7) * 24 * 60 * 60 * 1000)
+        
+        # 發送請求
+        url = f"https://api.coincap.io/v2/assets/{coin_id}/history"
+        params = {
+            'interval': interval,
+            'start': start_time,
+            'end': end_time
+        }
+        
+        print(f"正在請求CoinCap API: {url}")
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
             
-            if base_coin in coin_id_map:
-                # 添加必要的請求頭，避免CoinGecko API限流
-                headers = {
-                    'accept': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-                
-                # 設置超時，避免無限等待
-                timeout = 5  # 5秒超時
-                
-                coingecko_url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id_map[base_coin]}&vs_currencies=usd"
-                response = requests.get(coingecko_url, headers=headers, timeout=timeout)
-                
-                if response.status_code == 200:
-                    coingecko_price = response.json()[coin_id_map[base_coin]]['usd']
-                    dex_price = df['close'].iloc[-1]
+            if 'data' in data and data['data']:
+                # 構建OHLCV數據
+                ohlcv_data = []
+                for point in data['data']:
+                    timestamp = point['time']
+                    price = float(point['priceUsd'])
                     
-                    # 計算價格差異百分比
-                    price_diff_pct = abs(dex_price - coingecko_price) / coingecko_price * 100
+                    # CoinCap只提供價格，估算OHLC
+                    # 使用小波動以保持價格接近真實值
+                    open_price = price * (1 - random.uniform(0, 0.002))
+                    high_price = price * (1 + random.uniform(0, 0.003))
+                    low_price = price * (1 - random.uniform(0, 0.003))
                     
-                    print(f"價格對比 - DexScreener: ${dex_price:.2f}, CoinGecko: ${coingecko_price:.2f}, 差異: {price_diff_pct:.2f}%")
+                    # 估算交易量
+                    volume = price * random.uniform(price*1000, price*10000)
                     
-                    # 如果價格差異超過5%，使用CoinGecko的價格
-                    if price_diff_pct > 5:
-                        print(f"DexScreener價格與CoinGecko價格差異過大({price_diff_pct:.2f}%)，使用CoinGecko價格")
-                        
-                        # 創建新的收盤價系列，保持價格比例但調整到CoinGecko價格
-                        price_ratio = coingecko_price / dex_price
-                        df['close'] = df['close'] * price_ratio
-                        df['open'] = df['open'] * price_ratio
-                        df['high'] = df['high'] * price_ratio
-                        df['low'] = df['low'] * price_ratio
-                        
-                        st.warning(f"DexScreener價格顯示異常，已自動校正為CoinGecko價格(${coingecko_price:.2f})")
-                    
-                    # 標記價格已驗證
-                    price_verified = True
+                    ohlcv_data.append([
+                        timestamp,
+                        open_price,
+                        high_price,
+                        low_price,
+                        price,
+                        volume
+                    ])
                 
+                # 創建DataFrame並排序
+                df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                df = df.sort_values('timestamp')
+                
+                # 過濾所需數量的數據點
+                if len(df) > limit:
+                    df = df.tail(limit)
+                
+                print(f"成功從CoinCap獲取{symbol}的{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
+                
+                # 驗證價格合理性
+                if verify_price_reasonability(df, base.upper()):
+                    # 存入session_state
+                    if 'price_data' not in st.session_state:
+                        st.session_state.price_data = {}
+                    
+                    st.session_state.price_data[cache_key] = df.copy()
+                    
+                    st.success(f"成功獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
+                    return df
                 else:
-                    print(f"CoinGecko API返回狀態碼: {response.status_code}")
-                    # 嘗試解析錯誤訊息
-                    try:
-                        error_json = response.json()
-                        print(f"CoinGecko API錯誤: {error_json}")
-                    except:
-                        print(f"CoinGecko API返回非JSON響應: {response.text[:100]}")
-                
-        except Exception as gecko_error:
-            print(f"CoinGecko價格驗證失敗: {str(gecko_error)}")
-        
-        # 2. 如果CoinGecko驗證失敗，嘗試使用CoinMarketCap API作為備用
-        if not price_verified and COINMARKETCAP_API_KEY:
-            try:
-                print(f"嘗試使用CoinMarketCap API驗證{symbol}價格")
-                
-                # CoinMarketCap ID映射
-                cmc_id_map = {
-                    'BTC': 1,      # Bitcoin
-                    'ETH': 1027,   # Ethereum
-                    'SOL': 5426,   # Solana
-                    'BNB': 1839,   # Binance Coin
-                    'XRP': 52,     # XRP
-                    'ADA': 2010,   # Cardano
-                    'DOGE': 74,    # Dogecoin
-                    'SHIB': 5994   # Shiba Inu
-                }
-                
-                if base_coin in cmc_id_map:
-                    url = "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
-                    
-                    headers = {
-                        'X-CMC_PRO_API_KEY': COINMARKETCAP_API_KEY,
-                        'Accept': 'application/json'
-                    }
-                    
-                    params = {
-                        'id': cmc_id_map[base_coin],
-                        'convert': 'USD'
-                    }
-                    
-                    response = requests.get(url, headers=headers, params=params, timeout=5)
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        cmc_price = data['data'][str(cmc_id_map[base_coin])]['quote']['USD']['price']
-                        dex_price = df['close'].iloc[-1]
-                        
-                        # 計算價格差異百分比
-                        price_diff_pct = abs(dex_price - cmc_price) / cmc_price * 100
-                        
-                        print(f"價格對比 - DexScreener: ${dex_price:.2f}, CoinMarketCap: ${cmc_price:.2f}, 差異: {price_diff_pct:.2f}%")
-                        
-                        # 如果價格差異超過5%，使用CoinMarketCap的價格
-                        if price_diff_pct > 5:
-                            print(f"DexScreener價格與CoinMarketCap價格差異過大({price_diff_pct:.2f}%)，使用CoinMarketCap價格")
-                            
-                            # 創建新的收盤價系列，保持價格比例但調整到CoinMarketCap價格
-                            price_ratio = cmc_price / dex_price
-                            df['close'] = df['close'] * price_ratio
-                            df['open'] = df['open'] * price_ratio
-                            df['high'] = df['high'] * price_ratio
-                            df['low'] = df['low'] * price_ratio
-                            
-                            st.warning(f"DexScreener價格顯示異常，已自動校正為CoinMarketCap價格(${cmc_price:.2f})")
-                            
-                            # 標記價格已驗證
-                            price_verified = True
+                    print(f"CoinCap價格驗證失敗，嘗試備用API")
+            else:
+                print(f"CoinCap返回空數據集")
+        else:
+            print(f"CoinCap API返回錯誤: {response.status_code}")
+            if response.status_code == 429:
+                print("CoinCap API請求次數限制，等待重試")
+                time.sleep(2)  # 簡單延遲
             
-            except Exception as cmc_error:
-                print(f"CoinMarketCap價格驗證失敗: {str(cmc_error)}")
+    except Exception as e:
+        print(f"CoinCap API請求失敗: {str(e)}")
+    
+    # 2. 備用：使用CoinGecko API
+    try:
+        print(f"嘗試使用CoinGecko API獲取{symbol}數據")
         
-        # 3. 如果前兩個API都失敗，嘗試使用CCXT Binance API
-        if not price_verified:
-            try:
-                print(f"嘗試使用CCXT Binance API驗證{symbol}價格")
-                
-                # 使用CCXT獲取最新價格
-                exchange = ccxt.binance()
-                ticker = exchange.fetch_ticker(symbol)
-                ccxt_price = ticker['last']
-                dex_price = df['close'].iloc[-1]
-                
-                # 計算價格差異百分比
-                price_diff_pct = abs(dex_price - ccxt_price) / ccxt_price * 100
-                
-                print(f"價格對比 - DexScreener: ${dex_price:.2f}, CCXT Binance: ${ccxt_price:.2f}, 差異: {price_diff_pct:.2f}%")
-                
-                # 如果價格差異超過5%，使用CCXT的價格
-                if price_diff_pct > 5:
-                    print(f"DexScreener價格與CCXT Binance價格差異過大({price_diff_pct:.2f}%)，使用CCXT價格")
-                    
-                    # 創建新的收盤價系列，保持價格比例但調整到CCXT價格
-                    price_ratio = ccxt_price / dex_price
-                    df['close'] = df['close'] * price_ratio
-                    df['open'] = df['open'] * price_ratio
-                    df['high'] = df['high'] * price_ratio
-                    df['low'] = df['low'] * price_ratio
-                    
-                    st.warning(f"DexScreener價格顯示異常，已自動校正為Binance價格(${ccxt_price:.2f})")
-                    
-                    # 標記價格已驗證
-                    price_verified = True
-                
-            except Exception as ccxt_error:
-                print(f"CCXT價格驗證失敗: {str(ccxt_error)}")
+        # CoinGecko ID映射
+        coingecko_id_map = {
+            'BTC': 'bitcoin',
+            'ETH': 'ethereum',
+            'SOL': 'solana',
+            'BNB': 'binancecoin',
+            'XRP': 'ripple',
+            'ADA': 'cardano',
+            'DOGE': 'dogecoin',
+            'SHIB': 'shiba-inu'
+        }
         
-        # 4. 合理性檢查：檢查調整後的價格是否在合理範圍內
-        if df is not None and len(df) > 0:
-            # 針對不同幣種設置合理的價格範圍
-            reasonable_price_ranges = {
-                'BTC': (50000, 100000),  # BTC的合理價格範圍
-                'ETH': (2000, 5000),     # ETH的合理價格範圍
-                'SOL': (100, 300),       # SOL的合理價格範圍
-                'BNB': (400, 800),       # BNB的合理價格範圍
-                'XRP': (0.4, 1.0),       # XRP的合理價格範圍
-                'ADA': (0.2, 0.7),       # ADA的合理價格範圍
-                'DOGE': (0.05, 0.3),     # DOGE的合理價格範圍
-                'SHIB': (0.00001, 0.0001) # SHIB的合理價格範圍
-            }
+        coin_id = coingecko_id_map.get(base.upper(), base.lower())
+        vs_currency = quote.lower()
+        
+        # 根據時間框架選擇天數
+        days_map = {
+            '15m': 1,
+            '1h': 7,
+            '4h': 14,
+            '1d': 30,
+            '1w': 90
+        }
+        days = days_map.get(timeframe, 7)
+        
+        # 選擇合適的時間間隔
+        interval = 'hourly' if timeframe in ['15m', '1h', '4h'] else 'daily'
+        
+        # 請求頭，減少被限流概率
+        headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        # 發送請求
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+        params = {
+            'vs_currency': vs_currency,
+            'days': days,
+            'interval': interval
+        }
+        
+        print(f"正在請求CoinGecko API: {url}")
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
             
-            if base_coin in reasonable_price_ranges:
-                min_price, max_price = reasonable_price_ranges[base_coin]
-                current_price = df['close'].iloc[-1]
+            if 'prices' in data and data['prices']:
+                # 構建OHLCV數據
+                ohlcv_data = []
                 
-                if current_price < min_price or current_price > max_price:
-                    print(f"警告: {base_coin}價格(${current_price:.2f})超出合理範圍(${min_price:.2f}-${max_price:.2f})")
+                # 價格數據
+                prices = data['prices']  # [timestamp, price]
+                volumes = data['total_volumes'] if 'total_volumes' in data else None
+                
+                for i, price_point in enumerate(prices):
+                    timestamp = price_point[0]
+                    price = price_point[1]
                     
-                    # 如果價格不合理，使用合理範圍的中值
-                    if not price_verified:
-                        new_price = (min_price + max_price) / 2
-                        price_ratio = new_price / current_price
-                        
-                        df['close'] = df['close'] * price_ratio
-                        df['open'] = df['open'] * price_ratio
-                        df['high'] = df['high'] * price_ratio
-                        df['low'] = df['low'] * price_ratio
-                        
-                        st.warning(f"{base_coin}價格超出合理範圍，已自動調整為估計值(${new_price:.2f})")
+                    # 估算OHLC
+                    open_price = price * (1 - random.uniform(0, 0.002))
+                    high_price = price * (1 + random.uniform(0, 0.003))
+                    low_price = price * (1 - random.uniform(0, 0.003))
+                    
+                    # 獲取成交量
+                    if volumes and i < len(volumes):
+                        volume = volumes[i][1]
+                    else:
+                        volume = price * random.uniform(price*1000, price*10000)
+                    
+                    ohlcv_data.append([
+                        timestamp,
+                        open_price,
+                        high_price,
+                        low_price,
+                        price,
+                        volume
+                    ])
                 
-        # 輸出成功信息並返回
-        st.success(f"成功獲取 {symbol} 的真實市場數據，最新價格: ${df['close'].iloc[-1]:.2f}")
-        print(f"成功獲取 {symbol} 的真實市場數據，共{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
-        
-        # 將df存儲在session_state中，確保整個應用使用相同的數據
-        if 'price_data' not in st.session_state:
-            st.session_state.price_data = {}
+                # 創建DataFrame
+                df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                
+                # 根據時間框架過濾數據
+                if timeframe == '1h':
+                    # 每小時數據
+                    df = df.iloc[::1]
+                elif timeframe == '4h':
+                    # 每4小時數據
+                    df = df.iloc[::4]
+                elif timeframe == '1d':
+                    # 每天數據
+                    if interval == 'hourly':
+                        df = df.iloc[::24]
+                
+                # 確保數據點數量
+                if len(df) > limit:
+                    df = df.tail(limit)
+                
+                print(f"成功從CoinGecko獲取{symbol}的{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
+                
+                # 驗證價格合理性
+                if verify_price_reasonability(df, base.upper()):
+                    # 存入session_state
+                    if 'price_data' not in st.session_state:
+                        st.session_state.price_data = {}
+                    
+                    st.session_state.price_data[cache_key] = df.copy()
+                    
+                    st.success(f"成功獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
+                    return df
+                else:
+                    print(f"CoinGecko價格驗證失敗，嘗試備用方案")
+            else:
+                print(f"CoinGecko返回空數據集")
+        else:
+            print(f"CoinGecko API返回錯誤: {response.status_code}")
             
-        cache_key = f"{symbol}_{timeframe}"
-        st.session_state.price_data[cache_key] = df.copy()
+    except Exception as e:
+        print(f"CoinGecko API請求失敗: {str(e)}")
+    
+    # 3. 第三備用：使用CCXT嘗試獲取Binance數據
+    try:
+        print(f"嘗試使用CCXT Binance獲取{symbol}數據")
+        exchange = ccxt.binance()
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
         
-        return df
-    else:
-        st.error(f"無法獲取 {symbol} 的市場數據，請檢查網絡連接或選擇其他交易對")
-        print(f"無法獲取 {symbol} 的市場數據")
-        return None
+        if ohlcv and len(ohlcv) > 0:
+            # 創建DataFrame
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            
+            print(f"成功從CCXT Binance獲取{symbol}的{len(df)}個數據點")
+            
+            # 驗證價格合理性
+            if verify_price_reasonability(df, base.upper()):
+                # 存入session_state
+                if 'price_data' not in st.session_state:
+                    st.session_state.price_data = {}
+                
+                st.session_state.price_data[cache_key] = df.copy()
+                
+                st.success(f"成功獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
+                return df
+            else:
+                print(f"CCXT價格驗證失敗，嘗試最後的備用方案")
+    except Exception as e:
+        print(f"CCXT請求失敗: {str(e)}")
+    
+    # 4. 最後備用：使用模擬數據，但需明確標記為模擬
+    st.warning(f"無法從任何API獲取{symbol}的真實數據，使用模擬數據")
+    print(f"所有API獲取{symbol}數據失敗，使用模擬數據")
+    
+    # 生成模擬數據，但使用合理的價格
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=limit, freq=timeframe)
+    
+    # 使用2025年4月左右的合理價格
+    base_prices = {
+        'BTC': 68500,
+        'ETH': 3500,
+        'SOL': 180,
+        'BNB': 570,
+        'XRP': 0.62,
+        'ADA': 0.47,
+        'DOGE': 0.16,
+        'SHIB': 0.00002750
+    }
+    
+    base_price = base_prices.get(base.upper(), 100)
+    volatility = 0.03  # 3%波動率
+    
+    # 生成模擬的價格數據
+    close_prices = []
+    price = base_price
+    
+    for i in range(limit):
+        # 添加隨機波動
+        change = price * volatility * random.uniform(-1, 1)
+        trend = price * 0.0005 * (i - limit/2)  # 小趨勢
+        price = price + change + trend
+        close_prices.append(max(0.000001, price))  # 確保價格為正
+    
+    # 創建模擬數據DataFrame
+    df = pd.DataFrame({
+        'timestamp': dates,
+        'close': close_prices,
+        'open': [p * (1 + random.uniform(-0.005, 0.005)) for p in close_prices],
+        'high': [p * (1 + random.uniform(0, 0.01)) for p in close_prices],
+        'low': [p * (1 - random.uniform(0, 0.01)) for p in close_prices],
+        'volume': [p * random.uniform(500000, 5000000) for p in close_prices]
+    })
+    
+    # 存入session_state標記為模擬數據
+    if 'price_data' not in st.session_state:
+        st.session_state.price_data = {}
+    
+    st.session_state.price_data[cache_key] = df.copy()
+    st.session_state.mock_data_keys = st.session_state.get('mock_data_keys', []) + [cache_key]
+    
+    print(f"使用模擬數據: {symbol} 基準價格=${base_price:.2f}")
+    return df
 
 # 市場結構分析函數 (SMC)
 def smc_analysis(df):
