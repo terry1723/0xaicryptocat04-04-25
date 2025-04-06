@@ -28,6 +28,8 @@ load_dotenv()
 
 # 從環境變數獲取API密鑰
 CRYPTOAPIS_KEY = os.getenv('CRYPTOAPIS_KEY', '56af1c06ebd5a7602a660516e0d044489c307860')
+BINANCE_API_KEY = os.getenv('BINANCE_API_KEY', '')  # 默認為空字符串，避免硬編碼密鑰
+BINANCE_API_SECRET = os.getenv('BINANCE_API_SECRET', '')  # 默認為空字符串，避免硬編碼密鑰
 
 # 設置頁面配置
 st.set_page_config(
@@ -970,10 +972,98 @@ def get_cryptoapis_price(symbol, timeframe, limit=100):
     
     return None
 
-# 修改get_crypto_data函數，使Crypto APIs成為主要數據源
+# 添加 Binance API 獲取價格數據的函數
+def get_binance_price(symbol, timeframe, limit=100):
+    """
+    從 Binance 獲取加密貨幣價格數據
+    
+    參數:
+    symbol (str): 交易對符號，如 'BTC/USDT'
+    timeframe (str): 時間框架，如 '1d', '4h', '1h'
+    limit (int): 要獲取的數據點數量
+    
+    返回:
+    pandas.DataFrame: 包含OHLCV數據的DataFrame，如果獲取失敗則返回None
+    """
+    try:
+        print(f"嘗試使用Binance API獲取{symbol}數據")
+        
+        # 初始化Binance交易所，可選使用API密鑰
+        exchange_config = {
+            'enableRateLimit': True,
+            'timeout': 30000,
+        }
+        
+        # 如果有API密鑰，則添加到配置中
+        if BINANCE_API_KEY and BINANCE_API_SECRET:
+            exchange_config['apiKey'] = BINANCE_API_KEY
+            exchange_config['secret'] = BINANCE_API_SECRET
+            print(f"使用提供的Binance API密鑰 (前5位: {BINANCE_API_KEY[:5]}...)")
+        else:
+            print("使用公共Binance API (無需密鑰)")
+        
+        # 創建交易所實例
+        exchange = ccxt.binance(exchange_config)
+        
+        # 嘗試不同的Binance API鏡像來解決地區限制問題
+        binance_mirrors = [
+            'https://api.binance.com',
+            'https://api1.binance.com',
+            'https://api2.binance.com',
+            'https://api3.binance.com',
+            'https://api-gcp.binance.com',
+        ]
+        
+        # 嘗試每個鏡像，直到成功
+        for mirror in binance_mirrors:
+            try:
+                exchange.urls['api'] = mirror
+                print(f"嘗試Binance鏡像: {mirror}")
+                
+                # 獲取OHLCV (Open, High, Low, Close, Volume) 數據
+                ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+                
+                if ohlcv and len(ohlcv) > 0:
+                    # 創建DataFrame
+                    df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                    
+                    print(f"成功從Binance獲取{symbol}的{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
+                    return df
+            except Exception as e:
+                print(f"Binance鏡像 {mirror} 失敗: {str(e)}")
+                continue
+        
+        print("所有Binance鏡像都失敗了")
+        
+        # 如果所有鏡像都失敗了，嘗試使用另一個交易所
+        try:
+            print("嘗試使用Kucoin交易所作為備選")
+            kucoin = ccxt.kucoin({'enableRateLimit': True, 'timeout': 30000})
+            ohlcv = kucoin.fetch_ohlcv(symbol, timeframe, limit=limit)
+            
+            if ohlcv and len(ohlcv) > 0:
+                # 創建DataFrame
+                df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                
+                print(f"成功從Kucoin獲取{symbol}的{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
+                return df
+        except Exception as e:
+            print(f"Kucoin也失敗了: {str(e)}")
+        
+        return None
+        
+    except Exception as e:
+        print(f"Binance API請求失敗: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+# 修改get_crypto_data函數，添加Binance API作為優先數據源
 def get_crypto_data(symbol, timeframe, limit=100):
     """
-    獲取加密貨幣歷史數據，優先使用Crypto APIs
+    獲取加密貨幣歷史數據，優先使用Binance API
     
     參數:
     - symbol: 交易對符號，例如 'BTC/USDT'
@@ -992,7 +1082,24 @@ def get_crypto_data(symbol, timeframe, limit=100):
     st.info(f"正在獲取 {symbol} ({timeframe}) 的市場數據...")
     print(f"調用get_crypto_data: {symbol}, {timeframe}, {limit}")
     
-    # 1. 首先嘗試使用Crypto APIs
+    # 1. 首先嘗試使用Binance API
+    df = get_binance_price(symbol, timeframe, limit)
+    if df is not None and len(df) > 0:
+        # 驗證價格合理性
+        base_coin = symbol.split('/')[0].upper()
+        if verify_price_reasonability(df, base_coin):
+            # 存入session_state
+            if 'price_data' not in st.session_state:
+                st.session_state.price_data = {}
+            
+            st.session_state.price_data[cache_key] = df.copy()
+            
+            st.success(f"成功從Binance獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
+            return df
+        else:
+            print(f"Binance數據價格驗證失敗")
+    
+    # 2. 如果Binance失敗，嘗試使用Crypto APIs
     df = get_cryptoapis_price(symbol, timeframe, limit)
     if df is not None and len(df) > 0:
         # 驗證價格合理性
@@ -1009,7 +1116,7 @@ def get_crypto_data(symbol, timeframe, limit=100):
         else:
             print(f"Crypto APIs數據價格驗證失敗")
     
-    # 2. 如果Crypto APIs失敗，嘗試使用Smithery MCP API
+    # 3. 如果Crypto APIs失敗，嘗試使用Smithery MCP API
     df = get_smithery_mcp_crypto_price(symbol, timeframe, limit)
     if df is not None and len(df) > 0:
         # 驗證價格合理性
@@ -1026,7 +1133,7 @@ def get_crypto_data(symbol, timeframe, limit=100):
         else:
             print(f"Smithery MCP數據價格驗證失敗")
     
-    # 3. 如果Smithery MCP失敗，嘗試使用CoinCap API
+    # 4. 如果Smithery MCP失敗，嘗試使用CoinCap API
     try:
         print(f"嘗試使用CoinCap API獲取{symbol}數據")
         
@@ -1137,131 +1244,11 @@ def get_crypto_data(symbol, timeframe, limit=100):
     except Exception as e:
         print(f"CoinCap API請求失敗: {str(e)}")
 
-    # 4. 嘗試使用CoinGecko API
-    try:
-        print(f"嘗試使用CoinGecko API獲取{symbol}數據")
-        
-        # CoinGecko ID映射
-        coingecko_id_map = {
-            'BTC': 'bitcoin',
-            'ETH': 'ethereum',
-            'SOL': 'solana',
-            'BNB': 'binancecoin',
-            'XRP': 'ripple',
-            'ADA': 'cardano',
-            'DOGE': 'dogecoin',
-            'SHIB': 'shiba-inu'
-        }
-        
-        base, quote = symbol.split('/')
-        coin_id = coingecko_id_map.get(base.upper(), base.lower())
-        vs_currency = quote.lower()
-        
-        # 根據時間框架選擇天數
-        days_map = {
-            '15m': 1,
-            '1h': 7,
-            '4h': 14,
-            '1d': 30,
-            '1w': 90
-        }
-        days = days_map.get(timeframe, 7)
-        
-        # 選擇合適的時間間隔
-        interval = 'hourly' if timeframe in ['15m', '1h', '4h'] else 'daily'
-        
-        # 請求頭，減少被限流概率
-        headers = {
-            'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        # 發送請求
-        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-        params = {
-            'vs_currency': vs_currency,
-            'days': days,
-            'interval': interval
-        }
-        
-        print(f"正在請求CoinGecko API: {url}")
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if 'prices' in data and data['prices']:
-                # 構建OHLCV數據
-                ohlcv_data = []
-                
-                # 價格數據
-                prices = data['prices']  # [timestamp, price]
-                volumes = data['total_volumes'] if 'total_volumes' in data else None
-                
-                for i, price_point in enumerate(prices):
-                    timestamp = price_point[0]
-                    price = price_point[1]
-                    
-                    # 估算OHLC
-                    open_price = price * (1 - random.uniform(0, 0.002))
-                    high_price = price * (1 + random.uniform(0, 0.003))
-                    low_price = price * (1 - random.uniform(0, 0.003))
-                    
-                    # 獲取成交量
-                    if volumes and i < len(volumes):
-                        volume = volumes[i][1]
-                    else:
-                        volume = price * random.uniform(price*1000, price*10000)
-                    
-                    ohlcv_data.append([
-                        timestamp,
-                        open_price,
-                        high_price,
-                        low_price,
-                        price,
-                        volume
-                    ])
-                
-                # 創建DataFrame
-                df = pd.DataFrame(ohlcv_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                
-                # 根據時間框架過濾數據
-                if timeframe == '1h':
-                    # 每小時數據
-                    df = df.iloc[::1]
-                elif timeframe == '4h':
-                    # 每4小時數據
-                    df = df.iloc[::4]
-                elif timeframe == '1d':
-                    # 每天數據
-                    if interval == 'hourly':
-                        df = df.iloc[::24]
-                
-                # 確保數據點數量
-                if len(df) > limit:
-                    df = df.tail(limit)
-                
-                print(f"成功從CoinGecko獲取{symbol}的{len(df)}個數據點，最新價格: ${df['close'].iloc[-1]:.2f}")
-                
-                # 驗證價格合理性
-                if verify_price_reasonability(df, base.upper()):
-                    # 存入session_state
-                    if 'price_data' not in st.session_state:
-                        st.session_state.price_data = {}
-                    
-                    st.session_state.price_data[cache_key] = df.copy()
-                    
-                    st.success(f"成功獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
-                    return df
-    except Exception as e:
-        print(f"CoinGecko API請求失敗: {str(e)}")
-    
     # 5. 如果所有API都失敗，顯示錯誤
     error_msg = f"無法從任何API獲取{symbol}的數據。"
     # 記錄詳細錯誤以便調試
     print(f"所有API都失敗了: {error_msg}")
-    print(f"嘗試手動設置環境變數 CRYPTOAPIS_KEY={CRYPTOAPIS_KEY[:5]}...{CRYPTOAPIS_KEY[-5:]}")
+    print(f"嘗試手動設置環境變數 BINANCE_API_KEY 和 BINANCE_API_SECRET")
     print(f"請確認Zeabur環境變數已正確設置")
     
     st.error(error_msg + "請檢查網絡連接、API密鑰設置或嘗試其他交易對。")
