@@ -6,4 +6,5 @@ plotly==5.15.0
 requests==2.30.0
 openai==1.13.3
 python-dotenv>=0.21.0
-orjson>=3.8.7 
+orjson>=3.8.7
+ta==0.10.2 
