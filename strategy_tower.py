@@ -5,6 +5,20 @@ import time
 import random
 import datetime
 import plotly.graph_objects as go
+import ccxt
+import requests
+import json
+import ta
+from ta.trend import MACD
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
+import threading
+from collections import deque
+import uuid
+import matplotlib.pyplot as plt
+import base64
+from PIL import Image
+from io import BytesIO
 
 # 添加自定義 CSS 來優化界面
 st.markdown("""
@@ -169,76 +183,354 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 生成隨機信號的函數
-def generate_random_signal():
-    coins = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "DOGE/USDT"]
-    timeframes = ["1H", "4H", "8H", "1D"]
-    signal_types = ["買入", "賣出"]
+# 初始化交易所API連接
+def get_exchange():
+    # 使用ccxt連接幣安
+    exchange = ccxt.binance({
+        'enableRateLimit': True,
+        'options': {
+            'defaultType': 'future',  # 期貨市場
+        }
+    })
+    return exchange
+
+# 獲取市場數據
+def get_market_data(symbol, timeframe, limit=100):
+    exchange = get_exchange()
+    try:
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+        return df
+    except Exception as e:
+        st.error(f"獲取市場數據錯誤: {e}")
+        return None
+
+# 計算各種技術指標
+def calculate_indicators(df):
+    """計算各種交易技術指標"""
+    try:
+        # 確保數據已正確排序
+        df = df.sort_index()
+        
+        # 計算移動平均線
+        df['ma_50'] = df['close'].rolling(window=50).mean()
+        df['ma_200'] = df['close'].rolling(window=200).mean()
+        
+        # 計算布林帶 (20期, 2標準差)
+        df['bb_middle'] = df['close'].rolling(window=20).mean()
+        rolling_std = df['close'].rolling(window=20).std()
+        df['bb_upper'] = df['bb_middle'] + (rolling_std * 2)
+        df['bb_lower'] = df['bb_middle'] - (rolling_std * 2)
+        
+        # 計算相對強弱指數 (RSI, 14期)
+        delta = df['close'].diff()
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+        avg_gain = gain.rolling(window=14).mean()
+        avg_loss = loss.rolling(window=14).mean()
+        
+        # 避免除以零
+        avg_loss = avg_loss.replace(0, 0.001)
+        
+        rs = avg_gain / avg_loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+        
+        # 計算MACD (12,26,9)
+        exp1 = df['close'].ewm(span=12, adjust=False).mean()
+        exp2 = df['close'].ewm(span=26, adjust=False).mean()
+        df['macd'] = exp1 - exp2
+        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
+        df['macd_hist'] = df['macd'] - df['macd_signal']
+        
+        # 計算隨機震盪指標 (14,3)
+        low_14 = df['low'].rolling(window=14).min()
+        high_14 = df['high'].rolling(window=14).max()
+        
+        # 避免除以零
+        denom = high_14 - low_14
+        denom = denom.replace(0, 0.001)
+        
+        df['k_percent'] = 100 * ((df['close'] - low_14) / denom)
+        df['d_percent'] = df['k_percent'].rolling(window=3).mean()
+        
+        return df
     
-    # 隨機選擇
-    coin = random.choice(coins)
-    timeframe = random.choice(timeframes)
-    signal_type = random.choice(signal_types)
+    except Exception as e:
+        st.error(f"計算指標時出錯: {e}")
+        return df
+
+# 生成真實交易信號
+def generate_signals(df, symbol):
+    """根據技術指標生成交易信號"""
+    if df is None or len(df) < 50:
+        return None
     
-    # 生成合理的價格數據
-    base_prices = {
-        "BTC/USDT": 68500,
-        "ETH/USDT": 3450,
-        "SOL/USDT": 178,
-        "BNB/USDT": 575,
-        "XRP/USDT": 0.61,
-        "ADA/USDT": 0.47,
-        "DOGE/USDT": 0.16,
-    }
+    signals = []
     
-    # 獲取基準價格
-    base_price = base_prices.get(coin, 100)
+    # 獲取最新的數據點
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
     
-    # 加入一些隨機浮動
-    price_variation = base_price * 0.01  # 1%的浮動
+    # 移動平均線交叉信號
+    ma_cross = None
+    if prev['ma_50'] < prev['ma_200'] and latest['ma_50'] > latest['ma_200']:
+        ma_cross = {
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "GOLDEN_CROSS",
+            "action": "BUY",
+            "price": latest['close'],
+            "confidence": 80,
+            "description": f"{symbol} 形成黃金交叉，50期均線上穿200期均線",
+            "indicators": {
+                "ma_50": latest['ma_50'],
+                "ma_200": latest['ma_200']
+            }
+        }
+        signals.append(ma_cross)
+    elif prev['ma_50'] > prev['ma_200'] and latest['ma_50'] < latest['ma_200']:
+        ma_cross = {
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "DEATH_CROSS",
+            "action": "SELL",
+            "price": latest['close'],
+            "confidence": 75,
+            "description": f"{symbol} 形成死亡交叉，50期均線下穿200期均線",
+            "indicators": {
+                "ma_50": latest['ma_50'],
+                "ma_200": latest['ma_200']
+            }
+        }
+        signals.append(ma_cross)
     
-    # 計算價格
-    entry_price = round(base_price + random.uniform(-price_variation, price_variation), 4)
+    # RSI過買過賣信號
+    if latest['rsi'] < 30:
+        signals.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "OVERSOLD",
+            "action": "BUY",
+            "price": latest['close'],
+            "confidence": 70 + min(30 - latest['rsi'], 10),
+            "description": f"{symbol} RSI 過賣 ({latest['rsi']:.1f})",
+            "indicators": {
+                "rsi": latest['rsi']
+            }
+        })
+    elif latest['rsi'] > 70:
+        signals.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "OVERBOUGHT",
+            "action": "SELL",
+            "price": latest['close'],
+            "confidence": 70 + min(latest['rsi'] - 70, 10),
+            "description": f"{symbol} RSI 過買 ({latest['rsi']:.1f})",
+            "indicators": {
+                "rsi": latest['rsi']
+            }
+        })
     
-    if signal_type == "買入":
-        # 買入目標價格略高於入場價
-        target_price = round(entry_price * (1 + random.uniform(0.03, 0.08)), 4)
-        # 止損價略低於入場價
-        stop_loss = round(entry_price * (1 - random.uniform(0.02, 0.04)), 4)
-    else:
-        # 賣出目標價格略低於入場價
-        target_price = round(entry_price * (1 - random.uniform(0.03, 0.08)), 4)
-        # 止損價略高於入場價
-        stop_loss = round(entry_price * (1 + random.uniform(0.02, 0.04)), 4)
+    # MACD信號
+    if prev['macd'] < prev['macd_signal'] and latest['macd'] > latest['macd_signal']:
+        signals.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "MACD_BULLISH",
+            "action": "BUY",
+            "price": latest['close'],
+            "confidence": 75,
+            "description": f"{symbol} MACD 上穿信號線，看漲",
+            "indicators": {
+                "macd": latest['macd'],
+                "macd_signal": latest['macd_signal']
+            }
+        })
+    elif prev['macd'] > prev['macd_signal'] and latest['macd'] < latest['macd_signal']:
+        signals.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "MACD_BEARISH",
+            "action": "SELL",
+            "price": latest['close'],
+            "confidence": 75,
+            "description": f"{symbol} MACD 下穿信號線，看跌",
+            "indicators": {
+                "macd": latest['macd'],
+                "macd_signal": latest['macd_signal']
+            }
+        })
     
-    # 處理格式
-    if coin in ["BTC/USDT", "ETH/USDT", "BNB/USDT"]:
-        entry_price = f"{entry_price:.2f}"
-        target_price = f"{target_price:.2f}"
-        stop_loss = f"{stop_loss:.2f}"
-    elif coin in ["SOL/USDT", "ADA/USDT", "DOGE/USDT"]:
-        entry_price = f"{entry_price:.3f}"
-        target_price = f"{target_price:.3f}"
-        stop_loss = f"{stop_loss:.3f}"
-    else:
-        entry_price = f"{entry_price:.4f}"
-        target_price = f"{target_price:.4f}"
-        stop_loss = f"{stop_loss:.4f}"
+    # 布林帶信號
+    if latest['close'] < latest['bb_lower']:
+        signals.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "BB_LOWER",
+            "action": "BUY",
+            "price": latest['close'],
+            "confidence": 70,
+            "description": f"{symbol} 價格觸及布林帶下軌，考慮買入",
+            "indicators": {
+                "bb_lower": latest['bb_lower'],
+                "close": latest['close']
+            }
+        })
+    elif latest['close'] > latest['bb_upper']:
+        signals.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": latest.name.strftime('%Y-%m-%d %H:%M:%S'),
+            "symbol": symbol,
+            "signal_type": "BB_UPPER",
+            "action": "SELL",
+            "price": latest['close'],
+            "confidence": 70,
+            "description": f"{symbol} 價格觸及布林帶上軌，考慮賣出",
+            "indicators": {
+                "bb_upper": latest['bb_upper'],
+                "close": latest['close']
+            }
+        })
     
-    # 創建信號對象
-    signal = {
-        "coin": coin,
-        "timeframe": timeframe,
-        "signal_type": signal_type,
-        "entry_price": entry_price,
-        "target_price": target_price,
-        "stop_loss": stop_loss,
-        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
+    return signals
+
+# 從交易所獲取市場數據
+def fetch_market_data(symbol, timeframe, limit=500):
+    """從交易所獲取市場數據並計算技術指標"""
+    try:
+        # 初始化交易所API
+        exchange = ccxt.binance()
+        
+        # 獲取K線數據
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        
+        # 轉換為DataFrame
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+        
+        # 計算技術指標
+        df = calculate_indicators(df)
+        
+        return df
     
-    return signal
+    except Exception as e:
+        st.error(f"獲取市場數據時出錯: {symbol} {timeframe} - {e}")
+        return None
+
+# 獲取市場情緒數據
+def fetch_market_sentiment():
+    """獲取恐懼與貪婪指數等市場情緒數據"""
+    try:
+        # 使用恐懼與貪婪指數API
+        url = "https://api.alternative.me/fng/"
+        response = requests.get(url)
+        data = response.json()
+        
+        if data and 'data' in data:
+            latest = data['data'][0]
+            value = int(latest['value'])
+            classification = latest['value_classification']
+            
+            sentiment = {
+                'fear_greed_index': value,
+                'classification': classification,
+                'timestamp': latest['timestamp'],
+                'analysis': f"市場情緒: {classification} ({value}/100)"
+            }
+            
+            # 將數據保存到session state
+            st.session_state.market_sentiment = sentiment
+            
+            return sentiment
+        else:
+            return {
+                'fear_greed_index': 50,
+                'classification': '中性',
+                'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'analysis': "無法獲取市場情緒數據，使用中性值"
+            }
+    
+    except Exception as e:
+        st.error(f"獲取市場情緒數據時出錯: {e}")
+        return {
+            'fear_greed_index': 50,
+            'classification': '中性',
+            'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'analysis': "獲取數據時出錯，使用中性值"
+        }
+
+# 更新市場分析函數，使用新的fetch_market_data函數
+def analyze_markets():
+    symbols = [
+        "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", 
+        "XRP/USDT", "ADA/USDT", "DOGE/USDT", "AVAX/USDT",
+        "MATIC/USDT", "LINK/USDT", "DOT/USDT", "UNI/USDT"
+    ]
+    timeframes = ["1h", "4h", "1d"]
+    all_signals = []
+    
+    for symbol in symbols:
+        for timeframe in timeframes:
+            # 使用新函數獲取更全面的市場數據
+            df = fetch_market_data(symbol, timeframe)
+            if df is not None:
+                signals = generate_signals(df, symbol)
+                if signals:
+                    all_signals.extend(signals)
+    
+    # 添加市場情緒影響
+    if 'market_sentiment' in st.session_state and all_signals:
+        fear_greed_index = st.session_state.market_sentiment.get('fear_greed_index', 50)
+        # 將市場情緒作為額外因素影響信號
+        # 恐懼指數低時增強買入信號分數，高時增強賣出信號分數
+        for signal in all_signals:
+            if fear_greed_index < 30 and signal["signal_type"] == "BUY":
+                signal["score"] += 0.5
+                signal["sentiment_boost"] = "恐懼指數低，買入信號增強"
+            elif fear_greed_index > 70 and signal["signal_type"] == "SELL":
+                signal["score"] += 0.5
+                signal["sentiment_boost"] = "貪婪指數高，賣出信號增強"
+    
+    # 根據分數排序信號
+    if all_signals:
+        all_signals.sort(key=lambda x: x["score"], reverse=True)
+    
+    return all_signals
+
+# 後台監控線程
+def monitoring_thread():
+    while st.session_state.monitoring:
+        try:
+            new_signals = analyze_markets()
+            if new_signals:
+                # 將新信號添加到現有信號中
+                st.session_state.signals.extend(new_signals)
+                st.session_state.last_update = datetime.datetime.now()
+                
+                # 維護列表大小，最多保留20個信號
+                if len(st.session_state.signals) > 20:
+                    st.session_state.signals = st.session_state.signals[-20:]
+            
+            # 等待一段時間後再次分析
+            time.sleep(300)  # 每5分鐘檢查一次
+            
+        except Exception as e:
+            print(f"監控線程錯誤: {e}")
+            time.sleep(60)  # 發生錯誤時，等待1分鐘後重試
 
 def show_strategy():
+    """女妖輔助建議策略頁面"""
     # 設置用於保存信號的會話狀態變量
     if 'signals' not in st.session_state:
         st.session_state.signals = []
@@ -252,22 +544,17 @@ def show_strategy():
     if 'hit_rates' not in st.session_state:
         # 預設一些命中率數據
         st.session_state.hit_rates = {
-            '1H': {
+            '1h': {
                 'total': 125,
                 'hit': 87,
                 'rate': 69.6
             },
-            '4H': {
+            '4h': {
                 'total': 98,
                 'hit': 65,
                 'rate': 66.3
             },
-            '8H': {
-                'total': 76,
-                'hit': 48,
-                'rate': 63.2
-            },
-            '1D': {
+            '1d': {
                 'total': 42,
                 'hit': 31,
                 'rate': 73.8
@@ -523,6 +810,308 @@ def show_strategy():
             }, 15000);
         </script>
         """, unsafe_allow_html=True)
+
+# 顯示策略塔頁面
+def show_strategy_tower_page():
+    st.title("交易信號中心")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("交易信號概覽")
+        
+        # 選擇加密貨幣
+        crypto_options = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "SOL/USDT", "ADA/USDT", "DOGE/USDT", "AVAX/USDT"]
+        selected_cryptos = st.multiselect("選擇加密貨幣", crypto_options, default=["BTC/USDT", "ETH/USDT"])
+        
+        # 選擇時間範圍
+        timeframe_options = ["1m", "5m", "15m", "1h", "4h", "1d"]
+        selected_timeframes = st.multiselect("選擇時間範圍", timeframe_options, default=["1h", "4h"])
+        
+        # 獲取市場情緒數據
+        market_sentiment = fetch_market_sentiment()
+        
+        # 顯示市場情緒
+        sentiment_color = "green"
+        if market_sentiment['fear_greed_index'] < 30:
+            sentiment_color = "red"
+        elif market_sentiment['fear_greed_index'] < 50:
+            sentiment_color = "orange"
+        elif market_sentiment['fear_greed_index'] >= 70:
+            sentiment_color = "green"
+            
+        st.markdown(f"""
+        ### 市場情緒
+        <div style='background-color: rgba(0,0,0,0.1); padding: 15px; border-radius: 5px;'>
+            <h4 style='color: {sentiment_color};'>恐懼與貪婪指數: {market_sentiment['fear_greed_index']}/100 - {market_sentiment['classification']}</h4>
+            <p>{market_sentiment['analysis']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 獲取並顯示交易信號
+        if st.button("獲取最新交易信號"):
+            with st.spinner("正在生成交易信號..."):
+                all_signals = []
+                
+                for symbol in selected_cryptos:
+                    for timeframe in selected_timeframes:
+                        df = fetch_market_data(symbol, timeframe)
+                        if df is not None:
+                            signals = generate_signals(df, symbol)
+                            if signals:
+                                all_signals.extend(signals)
+                
+                if all_signals:
+                    # 按信心度排序信號
+                    all_signals.sort(key=lambda x: x['confidence'], reverse=True)
+                    
+                    # 保存到 session state
+                    st.session_state.trading_signals = all_signals
+                    
+                    # 顯示信號表格
+                    signals_df = pd.DataFrame(all_signals)
+                    if not signals_df.empty:
+                        columns_to_show = ['timestamp', 'symbol', 'signal_type', 'action', 'price', 'confidence', 'description']
+                        signals_df = signals_df[columns_to_show]
+                        signals_df.columns = ['時間', '交易對', '信號類型', '操作', '價格', '信心度', '描述']
+                        st.dataframe(signals_df, height=400)
+                        
+                        # 生成信號報告
+                        with st.expander("交易信號詳細報告"):
+                            for signal in all_signals:
+                                signal_color = "green" if signal['action'] == "BUY" else "red"
+                                st.markdown(f"""
+                                <div style='background-color: rgba(0,0,0,0.05); margin-bottom: 10px; padding: 15px; border-radius: 5px; border-left: 5px solid {signal_color};'>
+                                    <h4 style='color: {signal_color};'>{signal['symbol']} - {signal['signal_type']} ({signal['action']})</h4>
+                                    <p><strong>時間:</strong> {signal['timestamp']}</p>
+                                    <p><strong>價格:</strong> {signal['price']}</p>
+                                    <p><strong>信心度:</strong> {signal['confidence']}/100</p>
+                                    <p><strong>描述:</strong> {signal['description']}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                else:
+                    st.info("當前沒有發現交易信號，請稍後再試或更改選擇的交易對和時間範圍。")
+    
+    with col2:
+        st.subheader("交易信號圖表")
+        
+        # 顯示當前加密貨幣的圖表
+        if selected_cryptos:
+            selected_chart_crypto = st.selectbox("選擇查看圖表的加密貨幣", selected_cryptos)
+            selected_chart_timeframe = st.selectbox("選擇圖表時間範圍", timeframe_options, index=3)  # 默認1h
+            
+            with st.spinner("正在加載圖表..."):
+                df = fetch_market_data(selected_chart_crypto, selected_chart_timeframe)
+                if df is not None and not df.empty:
+                    # 使用plotly創建圖表
+                    fig = go.Figure()
+                    
+                    # 添加K線圖
+                    fig.add_trace(go.Candlestick(
+                        x=df.index,
+                        open=df['open'],
+                        high=df['high'],
+                        low=df['low'],
+                        close=df['close'],
+                        name="K線"
+                    ))
+                    
+                    # 添加均線
+                    fig.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['ma_50'],
+                        line=dict(color='orange', width=1),
+                        name="MA 50"
+                    ))
+                    
+                    fig.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['ma_200'],
+                        line=dict(color='purple', width=1),
+                        name="MA 200"
+                    ))
+                    
+                    # 添加布林帶
+                    fig.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['bb_upper'],
+                        line=dict(color='rgba(0,128,0,0.3)', width=1),
+                        name="布林上軌",
+                        fill=None
+                    ))
+                    
+                    fig.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['bb_middle'],
+                        line=dict(color='rgba(0,128,0,0.3)', width=1),
+                        name="布林中軌"
+                    ))
+                    
+                    fig.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['bb_lower'],
+                        line=dict(color='rgba(0,128,0,0.3)', width=1),
+                        name="布林下軌",
+                        fill='tonexty'
+                    ))
+                    
+                    # 設置圖表佈局
+                    fig.update_layout(
+                        title=f"{selected_chart_crypto} - {selected_chart_timeframe}",
+                        xaxis_title="時間",
+                        yaxis_title="價格",
+                        height=600,
+                        margin=dict(l=10, r=10, t=50, b=10),
+                        xaxis_rangeslider_visible=False,
+                        template="plotly_dark"
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 顯示RSI圖表
+                    fig_rsi = go.Figure()
+                    fig_rsi.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['rsi'],
+                        line=dict(color='cyan', width=1),
+                        name="RSI"
+                    ))
+                    
+                    # 添加過買過賣線
+                    fig_rsi.add_shape(
+                        type="line",
+                        x0=df.index[0],
+                        y0=70,
+                        x1=df.index[-1],
+                        y1=70,
+                        line=dict(color="red", width=2, dash="dash"),
+                    )
+                    fig_rsi.add_shape(
+                        type="line",
+                        x0=df.index[0],
+                        y0=30,
+                        x1=df.index[-1],
+                        y1=30,
+                        line=dict(color="green", width=2, dash="dash"),
+                    )
+                    
+                    fig_rsi.update_layout(
+                        title="RSI 指標",
+                        xaxis_title="時間",
+                        yaxis_title="RSI",
+                        height=250,
+                        margin=dict(l=10, r=10, t=50, b=10),
+                        yaxis=dict(range=[0, 100]),
+                        template="plotly_dark"
+                    )
+                    
+                    st.plotly_chart(fig_rsi, use_container_width=True)
+                    
+                    # 顯示MACD圖表
+                    fig_macd = go.Figure()
+                    fig_macd.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['macd'],
+                        line=dict(color='blue', width=1),
+                        name="MACD"
+                    ))
+                    fig_macd.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['macd_signal'],
+                        line=dict(color='red', width=1),
+                        name="信號線"
+                    ))
+                    
+                    # 添加MACD柱狀圖
+                    colors = ['green' if val >= 0 else 'red' for val in df['macd_hist']]
+                    fig_macd.add_trace(go.Bar(
+                        x=df.index,
+                        y=df['macd_hist'],
+                        marker_color=colors,
+                        name="柱狀圖"
+                    ))
+                    
+                    fig_macd.update_layout(
+                        title="MACD 指標",
+                        xaxis_title="時間",
+                        yaxis_title="MACD",
+                        height=250,
+                        margin=dict(l=10, r=10, t=50, b=10),
+                        template="plotly_dark"
+                    )
+                    
+                    st.plotly_chart(fig_macd, use_container_width=True)
+                else:
+                    st.error(f"無法獲取 {selected_chart_crypto} 的數據")
+
+# 生成隨機信號的函數
+def generate_random_signal():
+    coins = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "DOGE/USDT"]
+    timeframes = ["1h", "4h", "1d"]
+    signal_types = ["買入", "賣出"]
+    
+    # 隨機選擇
+    coin = random.choice(coins)
+    timeframe = random.choice(timeframes)
+    signal_type = random.choice(signal_types)
+    
+    # 生成合理的價格數據
+    base_prices = {
+        "BTC/USDT": 68500,
+        "ETH/USDT": 3450,
+        "SOL/USDT": 178,
+        "BNB/USDT": 575,
+        "XRP/USDT": 0.61,
+        "ADA/USDT": 0.47,
+        "DOGE/USDT": 0.16,
+    }
+    
+    # 獲取基準價格
+    base_price = base_prices.get(coin, 100)
+    
+    # 加入一些隨機浮動
+    price_variation = base_price * 0.01  # 1%的浮動
+    
+    # 計算價格
+    entry_price = round(base_price + random.uniform(-price_variation, price_variation), 4)
+    
+    if signal_type == "買入":
+        # 買入目標價格略高於入場價
+        target_price = round(entry_price * (1 + random.uniform(0.03, 0.08)), 4)
+        # 止損價略低於入場價
+        stop_loss = round(entry_price * (1 - random.uniform(0.02, 0.04)), 4)
+    else:
+        # 賣出目標價格略低於入場價
+        target_price = round(entry_price * (1 - random.uniform(0.03, 0.08)), 4)
+        # 止損價略高於入場價
+        stop_loss = round(entry_price * (1 + random.uniform(0.02, 0.04)), 4)
+    
+    # 處理格式
+    if coin in ["BTC/USDT", "ETH/USDT", "BNB/USDT"]:
+        entry_price = f"{entry_price:.2f}"
+        target_price = f"{target_price:.2f}"
+        stop_loss = f"{stop_loss:.2f}"
+    elif coin in ["SOL/USDT", "ADA/USDT", "DOGE/USDT"]:
+        entry_price = f"{entry_price:.3f}"
+        target_price = f"{target_price:.3f}"
+        stop_loss = f"{stop_loss:.3f}"
+    else:
+        entry_price = f"{entry_price:.4f}"
+        target_price = f"{target_price:.4f}"
+        stop_loss = f"{stop_loss:.4f}"
+    
+    # 創建信號對象
+    signal = {
+        "coin": coin,
+        "timeframe": timeframe,
+        "signal_type": signal_type,
+        "entry_price": entry_price,
+        "target_price": target_price,
+        "stop_loss": stop_loss,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    return signal
 
 # 如果直接運行此文件，則顯示策略
 if __name__ == "__main__":
