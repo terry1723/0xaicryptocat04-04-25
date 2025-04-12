@@ -141,7 +141,7 @@ if st.session_state.logged_in:
         st.error(f"無法載入策略頁面: {e}")
         if st.button("登出"):
             st.session_state.logged_in = False
-            st.experimental_rerun()
+            st.rerun()
 else:
     # 顯示登錄頁面
     st.markdown("<h1 class='gradient-text' style='text-align: center;'>加密貨幣分析與策略工具</h1>", unsafe_allow_html=True)
@@ -169,7 +169,7 @@ else:
             
             # 添加延遲效果，然後重新運行應用程序
             time.sleep(1)
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("用戶名或密碼錯誤，請重試")
     
