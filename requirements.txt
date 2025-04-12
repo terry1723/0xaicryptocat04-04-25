@@ -7,4 +7,5 @@ requests==2.30.0
 openai==1.13.3
 python-dotenv>=0.21.0
 orjson>=3.8.7
-ta==0.10.2 
+ta==0.10.2
+matplotlib==3.7.2 
