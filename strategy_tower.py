@@ -514,7 +514,7 @@ def show_strategy():
                         if new_signals:
                             st.session_state.signals.extend(new_signals)
                     st.session_state.last_update = datetime.datetime.now()
-                st.rerun()  # 使用st.rerun代替st.experimental_rerun
+                st.experimental_rerun()  # 使用st.experimental_rerun()代替st.rerun
         
         # 顯示信號
         st.markdown("<h3>最新信號</h3>", unsafe_allow_html=True)
