@@ -1,0 +1,792 @@
+{
+  "buttons": [
+    {
+      "tag": "button",
+      "id": "radix-:r0:",
+      "classes": [
+        "justify-center",
+        "whitespace-nowrap",
+        "text-sm",
+        "font-medium",
+        "ring-offset-background",
+        "transition-colors",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "[&_svg]:pointer-events-none",
+        "[&_svg]:size-4",
+        "[&_svg]:shrink-0",
+        "hover:bg-accent",
+        "h-9",
+        "language-switcher-trigger",
+        "flex",
+        "items-center",
+        "gap-1.5",
+        "text-gray-300",
+        "hover:text-blue-400",
+        "border",
+        "border-raven-accent/20",
+        "rounded-md",
+        "px-2.5",
+        "py-1.5"
+      ],
+      "text": "繁體",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-9 language-switcher-trigger flex items-center gap-1.5 text-gray-300 hover:text-blue-400 border border-raven-accent/20 rounded-md px-2.5 py-1.5"
+        },
+        {
+          "name": "type",
+          "value": "button"
+        },
+        {
+          "name": "id",
+          "value": "radix-:r0:"
+        },
+        {
+          "name": "aria-haspopup",
+          "value": "menu"
+        },
+        {
+          "name": "aria-expanded",
+          "value": "false"
+        },
+        {
+          "name": "data-state",
+          "value": "closed"
+        }
+      ],
+      "position": {
+        "x": 1205.515625,
+        "y": -53,
+        "width": 72,
+        "height": 36
+      }
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "classes": [
+        "inline-flex",
+        "items-center",
+        "justify-center",
+        "gap-2",
+        "whitespace-nowrap",
+        "rounded-md",
+        "text-sm",
+        "font-medium",
+        "ring-offset-background",
+        "transition-colors",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "[&_svg]:pointer-events-none",
+        "[&_svg]:size-4",
+        "[&_svg]:shrink-0",
+        "border",
+        "bg-background",
+        "hover:text-accent-foreground",
+        "h-10",
+        "w-10",
+        "border-orange-500/50",
+        "text-orange-500",
+        "hover:bg-orange-950/30"
+      ],
+      "text": "",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border bg-background hover:text-accent-foreground h-10 w-10 border-orange-500/50 text-orange-500 hover:bg-orange-950/30"
+        }
+      ],
+      "position": {
+        "x": 1301.515625,
+        "y": -55,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "classes": [
+        "text-raven-accent",
+        "focus:outline-none"
+      ],
+      "text": "",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "text-raven-accent focus:outline-none"
+        }
+      ],
+      "position": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    {
+      "tag": "button",
+      "id": "radix-:re:",
+      "classes": [
+        "justify-center",
+        "whitespace-nowrap",
+        "text-sm",
+        "font-medium",
+        "ring-offset-background",
+        "transition-colors",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "[&_svg]:pointer-events-none",
+        "[&_svg]:size-4",
+        "[&_svg]:shrink-0",
+        "hover:bg-accent",
+        "h-9",
+        "language-switcher-trigger",
+        "flex",
+        "items-center",
+        "gap-1.5",
+        "text-gray-300",
+        "hover:text-blue-400",
+        "border",
+        "border-raven-accent/20",
+        "rounded-md",
+        "px-2.5",
+        "py-1.5"
+      ],
+      "text": "繁體",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-9 language-switcher-trigger flex items-center gap-1.5 text-gray-300 hover:text-blue-400 border border-raven-accent/20 rounded-md px-2.5 py-1.5"
+        },
+        {
+          "name": "type",
+          "value": "button"
+        },
+        {
+          "name": "id",
+          "value": "radix-:re:"
+        },
+        {
+          "name": "aria-haspopup",
+          "value": "menu"
+        },
+        {
+          "name": "aria-expanded",
+          "value": "false"
+        },
+        {
+          "name": "data-state",
+          "value": "closed"
+        }
+      ],
+      "position": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "classes": [
+        "inline-flex",
+        "items-center",
+        "justify-center",
+        "gap-2",
+        "whitespace-nowrap",
+        "font-medium",
+        "ring-offset-background",
+        "transition-colors",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "[&_svg]:pointer-events-none",
+        "[&_svg]:size-4",
+        "[&_svg]:shrink-0",
+        "border",
+        "bg-background",
+        "h-9",
+        "rounded-md",
+        "text-xs",
+        "md:text-sm",
+        "py-1",
+        "px-2",
+        "border-raven-accentSecondary/70",
+        "text-raven-accentSecondary",
+        "hover:bg-raven-accentSecondary/10",
+        "hover:text-white",
+        "shadow-md",
+        "shadow-raven-accentSecondary/20"
+      ],
+      "text": "登出",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border bg-background h-9 rounded-md text-xs md:text-sm py-1 px-2 border-raven-accentSecondary/70 text-raven-accentSecondary hover:bg-raven-accentSecondary/10 hover:text-white shadow-md shadow-raven-accentSecondary/20"
+        }
+      ],
+      "position": {
+        "x": 1662,
+        "y": -53,
+        "width": 46,
+        "height": 36
+      }
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "classes": [
+        "justify-center",
+        "whitespace-nowrap",
+        "text-sm",
+        "font-medium",
+        "ring-offset-background",
+        "transition-colors",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "[&_svg]:pointer-events-none",
+        "[&_svg]:size-4",
+        "[&_svg]:shrink-0",
+        "border",
+        "border-input",
+        "bg-background",
+        "hover:bg-accent",
+        "hover:text-accent-foreground",
+        "h-9",
+        "rounded-md",
+        "px-3",
+        "flex",
+        "items-center",
+        "gap-1"
+      ],
+      "text": "體驗新版策略塔",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3 flex items-center gap-1"
+        }
+      ],
+      "position": {
+        "x": 204,
+        "y": 62,
+        "width": 144,
+        "height": 36
+      }
+    },
+    {
+      "tag": "button",
+      "id": "radix-:r12:-trigger-chat",
+      "classes": [
+        "inline-flex",
+        "items-center",
+        "justify-center",
+        "whitespace-nowrap",
+        "rounded-sm",
+        "px-3",
+        "py-1.5",
+        "font-medium",
+        "ring-offset-background",
+        "transition-all",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "data-[state=active]:bg-background",
+        "data-[state=active]:text-foreground",
+        "data-[state=active]:shadow-sm",
+        "text-xs",
+        "md:text-sm"
+      ],
+      "text": "學者AI交易輔助建議",
+      "attributes": [
+        {
+          "name": "type",
+          "value": "button"
+        },
+        {
+          "name": "role",
+          "value": "tab"
+        },
+        {
+          "name": "aria-selected",
+          "value": "true"
+        },
+        {
+          "name": "aria-controls",
+          "value": "radix-:r12:-content-chat"
+        },
+        {
+          "name": "data-state",
+          "value": "active"
+        },
+        {
+          "name": "id",
+          "value": "radix-:r12:-trigger-chat"
+        },
+        {
+          "name": "class",
+          "value": "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm text-xs md:text-sm"
+        },
+        {
+          "name": "tabindex",
+          "value": "0"
+        },
+        {
+          "name": "data-orientation",
+          "value": "horizontal"
+        },
+        {
+          "name": "data-radix-collection-item",
+          "value": ""
+        }
+      ],
+      "position": {
+        "x": 208,
+        "y": 454,
+        "width": 508,
+        "height": 32
+      }
+    },
+    {
+      "tag": "button",
+      "id": "radix-:r12:-trigger-chat2",
+      "classes": [
+        "inline-flex",
+        "items-center",
+        "justify-center",
+        "whitespace-nowrap",
+        "rounded-sm",
+        "px-3",
+        "py-1.5",
+        "font-medium",
+        "ring-offset-background",
+        "transition-all",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "data-[state=active]:bg-background",
+        "data-[state=active]:text-foreground",
+        "data-[state=active]:shadow-sm",
+        "text-xs",
+        "md:text-sm"
+      ],
+      "text": "女妖輔助建議策略",
+      "attributes": [
+        {
+          "name": "type",
+          "value": "button"
+        },
+        {
+          "name": "role",
+          "value": "tab"
+        },
+        {
+          "name": "aria-selected",
+          "value": "false"
+        },
+        {
+          "name": "aria-controls",
+          "value": "radix-:r12:-content-chat2"
+        },
+        {
+          "name": "data-state",
+          "value": "inactive"
+        },
+        {
+          "name": "id",
+          "value": "radix-:r12:-trigger-chat2"
+        },
+        {
+          "name": "class",
+          "value": "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm text-xs md:text-sm"
+        },
+        {
+          "name": "tabindex",
+          "value": "-1"
+        },
+        {
+          "name": "data-orientation",
+          "value": "horizontal"
+        },
+        {
+          "name": "data-radix-collection-item",
+          "value": ""
+        }
+      ],
+      "position": {
+        "x": 716,
+        "y": 454,
+        "width": 508,
+        "height": 32
+      }
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "classes": [
+        "inline-flex",
+        "items-center",
+        "justify-center",
+        "gap-2",
+        "whitespace-nowrap",
+        "font-medium",
+        "ring-offset-background",
+        "transition-colors",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "[&_svg]:pointer-events-none",
+        "[&_svg]:size-4",
+        "[&_svg]:shrink-0",
+        "border",
+        "border-input",
+        "bg-background",
+        "hover:bg-accent",
+        "hover:text-accent-foreground",
+        "h-9",
+        "rounded-md",
+        "px-3",
+        "text-xs",
+        "md:text-sm"
+      ],
+      "text": "清空聊天",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3 text-xs md:text-sm"
+        }
+      ],
+      "position": {
+        "x": 1093,
+        "y": 527,
+        "width": 110,
+        "height": 36
+      }
+    },
+    {
+      "tag": "button",
+      "id": "",
+      "classes": [
+        "inline-flex",
+        "items-center",
+        "justify-center",
+        "gap-2",
+        "whitespace-nowrap",
+        "rounded-md",
+        "text-sm",
+        "font-medium",
+        "ring-offset-background",
+        "transition-colors",
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-ring",
+        "focus-visible:ring-offset-2",
+        "disabled:pointer-events-none",
+        "disabled:opacity-50",
+        "[&_svg]:pointer-events-none",
+        "[&_svg]:size-4",
+        "[&_svg]:shrink-0",
+        "bg-primary",
+        "text-primary-foreground",
+        "hover:bg-primary/90",
+        "py-2",
+        "h-[60px]",
+        "px-4"
+      ],
+      "text": "",
+      "attributes": [
+        {
+          "name": "class",
+          "value": "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 py-2 h-[60px] px-4"
+        },
+        {
+          "name": "disabled",
+          "value": ""
+        }
+      ],
+      "position": {
+        "x": 1155,
+        "y": 1186,
+        "width": 48,
+        "height": 60
+      }
+    }
+  ],
+  "inputs": [],
+  "selects": [],
+  "divs": [],
+  "anchors": [
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "CoinRAV\n更聰明的交易 更簡單的工具",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/"
+        }
+      ],
+      "position": {
+        "x": 204,
+        "y": -75,
+        "width": 256.71875,
+        "height": 80
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "新手AI",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/"
+        }
+      ],
+      "position": {
+        "x": 547.5625,
+        "y": -49,
+        "width": 59.6875,
+        "height": 28
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "AI工具",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/strategy-tower"
+        }
+      ],
+      "position": {
+        "x": 631.25,
+        "y": -45,
+        "width": 41.90625,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "巨鯨追蹤\nBETA",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/whale-tracker"
+        }
+      ],
+      "position": {
+        "x": 697.15625,
+        "y": -45,
+        "width": 98.359375,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "聯繫我們",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/contact"
+        }
+      ],
+      "position": {
+        "x": 819.515625,
+        "y": -45,
+        "width": 56,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "技術資源",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/resources"
+        }
+      ],
+      "position": {
+        "x": 899.515625,
+        "y": -45,
+        "width": 56,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "白皮書",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/whitepaper"
+        }
+      ],
+      "position": {
+        "x": 979.515625,
+        "y": -45,
+        "width": 42,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "會員價格",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/pricing"
+        }
+      ],
+      "position": {
+        "x": 1045.515625,
+        "y": -45,
+        "width": 56,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "聯盟計畫",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/affiliate"
+        }
+      ],
+      "position": {
+        "x": 1125.515625,
+        "y": -45,
+        "width": 56,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "",
+      "attributes": [
+        {
+          "name": "data-state",
+          "value": "closed"
+        },
+        {
+          "name": "href",
+          "value": "/m"
+        }
+      ],
+      "position": {
+        "x": 1301.515625,
+        "y": -55,
+        "width": 40,
+        "height": 40
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [
+        "inline-flex",
+        "items-center",
+        "gap-1",
+        "text-sm",
+        "font-medium",
+        "text-raven-accent",
+        "hover:text-raven-accentSecondary",
+        "transition-colors"
+      ],
+      "text": "CoinRAV討論大群",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "https://line.me/ti/g2/-jWzAOVv-1OfmzuH3OSyDz5v3gsRdSx2oFlHqw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default"
+        },
+        {
+          "name": "target",
+          "value": "_blank"
+        },
+        {
+          "name": "rel",
+          "value": "noopener noreferrer"
+        },
+        {
+          "name": "class",
+          "value": "inline-flex items-center gap-1 text-sm font-medium text-raven-accent hover:text-raven-accentSecondary transition-colors"
+        }
+      ],
+      "position": {
+        "x": 1365.515625,
+        "y": -45,
+        "width": 133.328125,
+        "height": 20
+      }
+    },
+    {
+      "tag": "a",
+      "id": "",
+      "classes": [],
+      "text": "體驗新版策略塔",
+      "attributes": [
+        {
+          "name": "href",
+          "value": "/strategy-tower?useNew=true"
+        }
+      ],
+      "position": {
+        "x": 204,
+        "y": 62,
+        "width": 1024,
+        "height": 36
+      }
+    }
+  ]
+}

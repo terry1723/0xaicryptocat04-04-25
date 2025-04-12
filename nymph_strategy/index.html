@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>女妖策略 - 加密貨幣交易信號平台</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- 導航欄 -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <i class="fas fa-chart-line"></i>
+            <h1>女妖策略</h1>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="active"><i class="fas fa-home"></i> 首頁</a>
+            <a href="#"><i class="fas fa-signal"></i> 信號</a>
+            <a href="#"><i class="fas fa-history"></i> 歷史</a>
+            <a href="#"><i class="fas fa-cog"></i> 設置</a>
+        </div>
+        <div class="user-actions">
+            <div class="notification-container"></div>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name=User&background=random" alt="用戶頭像">
+                <span>用戶名</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要內容 -->
+    <div class="main-content">
+        <!-- 統計區域 -->
+        <section class="statistics-section">
+            <h2>市場概覽</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-bolt"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="active-signals">0</span>
+                        <span class="stat-label">活躍信號</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon positive"><i class="fas fa-arrow-up"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="bullish-signals">0</span>
+                        <span class="stat-label">看漲信號</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon negative"><i class="fas fa-arrow-down"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="bearish-signals">0</span>
+                        <span class="stat-label">看跌信號</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="win-rate">0%</span>
+                        <span class="stat-label">勝率</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 設置區域 -->
+        <section class="settings-section">
+            <div class="settings-card">
+                <div class="settings-header">
+                    <h2>偏好設置</h2>
+                </div>
+                <div class="settings-body">
+                    <div class="setting-item">
+                        <span class="setting-label">接收信號通知</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notification-toggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">時間範圍</span>
+                        <select id="timeframe-select" class="select-dropdown">
+                            <option value="1h">1小時</option>
+                            <option value="4h">4小時</option>
+                            <option value="1d" selected>1天</option>
+                            <option value="1w">1週</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 信號區域 -->
+        <section class="signals-section">
+            <div class="signals-header">
+                <h2>交易信號</h2>
+                <div class="signals-filter">
+                    <button class="filter-btn active" data-filter="all">全部</button>
+                    <button class="filter-btn" data-filter="bullish">看漲</button>
+                    <button class="filter-btn" data-filter="bearish">看跌</button>
+                </div>
+            </div>
+            <div class="signals-container">
+                <!-- 信號卡片將通過JavaScript動態生成 -->
+            </div>
+        </section>
+    </div>
+
+    <!-- 信號詳情模態框 -->
+    <div id="signal-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>信號詳情</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- 模態框內容將通過JavaScript動態生成 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary">確認信號</button>
+                <button class="btn btn-secondary close-modal">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>女妖策略 | CryptoGPT 分析助手</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- 導航欄 -->
+    <nav class="navbar">
+        <div class="navbar-logo">
+            <img src="https://via.placeholder.com/32x32/8a2be2/ffffff?text=W" alt="女巫策略">
+            <span>女妖策略 <sup>Beta</sup></span>
+        </div>
+        <div class="navbar-links">
+            <a href="#" class="navbar-link active">總覽</a>
+            <a href="#" class="navbar-link">信號</a>
+            <a href="#" class="navbar-link">數據分析</a>
+            <a href="#" class="navbar-link">設置</a>
+        </div>
+        <div class="navbar-right">
+            <a href="#" class="navbar-user">
+                <img src="https://via.placeholder.com/30x30" alt="用戶頭像" class="user-avatar">
+                <span class="user-name">Terry Lee</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- 主要內容 -->
+    <main class="dashboard">
+        <header class="dashboard-header">
+            <h1 class="dashboard-title">女妖策略信號</h1>
+            <div class="dashboard-actions">
+                <button class="btn-primary" id="refresh-signals">
+                    <i class="ri-refresh-line"></i>
+                    刷新信號
+                </button>
+                <button class="btn-secondary" id="clear-signals">
+                    <i class="ri-delete-bin-line"></i>
+                    清除信號
+                </button>
+            </div>
+        </header>
+
+        <!-- 統計卡片 -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-title">
+                    <i class="ri-radar-line"></i>
+                    活躍信號
+                </div>
+                <div class="stat-value">12</div>
+                <div class="stat-change stat-up">
+                    <i class="ri-arrow-up-line"></i>
+                    3 (33%)
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">
+                    <i class="ri-arrow-up-circle-line"></i>
+                    多頭信號
+                </div>
+                <div class="stat-value">8</div>
+                <div class="stat-change stat-up">
+                    <i class="ri-arrow-up-line"></i>
+                    2 (25%)
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">
+                    <i class="ri-arrow-down-circle-line"></i>
+                    空頭信號
+                </div>
+                <div class="stat-value">4</div>
+                <div class="stat-change stat-up">
+                    <i class="ri-arrow-up-line"></i>
+                    1 (33%)
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">
+                    <i class="ri-bar-chart-box-line"></i>
+                    平均勝率
+                </div>
+                <div class="stat-value">78%</div>
+                <div class="stat-change stat-up">
+                    <i class="ri-arrow-up-line"></i>
+                    2.5%
+                </div>
+            </div>
+        </div>
+
+        <!-- 設置區域 -->
+        <div class="settings">
+            <div class="settings-header">
+                <h2 class="settings-title">
+                    <i class="ri-filter-3-line"></i>
+                    篩選設置
+                </h2>
+            </div>
+            <div class="settings-body">
+                <div class="settings-control">
+                    <label class="settings-label">交易對</label>
+                    <select class="settings-select" id="filter-pair">
+                        <option value="all">全部交易對</option>
+                        <option value="BTC/USDT">BTC/USDT</option>
+                        <option value="ETH/USDT">ETH/USDT</option>
+                        <option value="SOL/USDT">SOL/USDT</option>
+                        <option value="BNB/USDT">BNB/USDT</option>
+                    </select>
+                </div>
+                <div class="settings-control">
+                    <label class="settings-label">方向</label>
+                    <select class="settings-select" id="filter-direction">
+                        <option value="all">全部方向</option>
+                        <option value="long">多頭</option>
+                        <option value="short">空頭</option>
+                    </select>
+                </div>
+                <div class="settings-control">
+                    <label class="settings-label">信號來源</label>
+                    <select class="settings-select" id="filter-source">
+                        <option value="all">全部來源</option>
+                        <option value="ai-analysis">AI 技術分析</option>
+                        <option value="whale-tracking">大戶追蹤</option>
+                        <option value="news-sentiment">新聞情緒</option>
+                        <option value="macro-data">宏觀數據</option>
+                    </select>
+                </div>
+                <div class="settings-control">
+                    <label class="settings-label">最低信心度</label>
+                    <input type="range" min="0" max="100" value="50" class="settings-input" id="filter-confidence">
+                </div>
+            </div>
+        </div>
+
+        <!-- 信號列表 -->
+        <section class="signals-section">
+            <div class="signals-header">
+                <h2 class="signals-title">
+                    <i class="ri-pulse-line"></i>
+                    交易信號
+                </h2>
+                <div class="signals-actions">
+                    <button class="btn-secondary" id="sort-signals">
+                        <i class="ri-sort-desc"></i>
+                        排序方式
+                    </button>
+                </div>
+            </div>
+            <div id="signals-container">
+                <!-- 信號卡片會動態添加到這裡 -->
+            </div>
+        </section>
+    </main>
+
+    <!-- 模態框 -->
+    <div id="signal-modal">
+        <div id="modal-backdrop"></div>
+        <div id="modal-dialog">
+            <div id="modal-header">
+                <h2 id="modal-title">信號詳情</h2>
+                <button id="modal-close">&times;</button>
+            </div>
+            <div id="modal-content">
+                <!-- 模態框內容會動態生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="notification-container">
+        <!-- 通知會動態添加到這裡 -->
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html> 
