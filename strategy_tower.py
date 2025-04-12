@@ -338,7 +338,7 @@ def show_strategy():
                 st.session_state.monitoring = not st.session_state.monitoring
                 if st.session_state.monitoring:
                     st.session_state.last_update = datetime.datetime.now()
-                st.rerun()
+                st.experimental_rerun()
         
         # 顯示信號
         st.markdown("<h3>最新信號</h3>", unsafe_allow_html=True)
